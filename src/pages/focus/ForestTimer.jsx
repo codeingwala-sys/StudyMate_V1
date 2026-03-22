@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { notifyTimerDone } from '../../services/notifications.service'
+import { showNotification } from '../../services/notifications.service'
 import { haptic } from '../../utils/haptics'
 import { playTimerStart, playWarning90, playTimerDone, playBreakStart } from '../../services/sound.service'
 import { useAppStore } from '../../app/store'
@@ -78,6 +78,46 @@ export default function FocusTimer() {
   const modeRef     = useRef('timer')
   const dragRef     = useRef({ active:false,side:'right',startY:0,startH:0,startM:25 })
   const swipeRef    = useRef({ active:false, startX:0, startMode:'' })
+
+  // ── Repeating alarm — fires every 30s when timer ends until user dismisses ──
+  const alarmIntervalRef = useRef(null)
+  const [alarmActive, setAlarmActive] = useState(false)
+
+  // Start the repeating alarm
+  const startAlarm = useCallback((label, minutes) => {
+    const title = label === 'short' ? '☕ Short break over!'
+                : label === 'long'  ? '🌿 Long break over!'
+                : '✦ Focus session complete!'
+    const body  = label === 'short' ? 'Your short break has ended. Time to focus!'
+                : label === 'long'  ? 'Long break done. Ready to study again?'
+                : `${minutes} minutes of deep focus complete. Take a break!`
+
+    // Always mark alarm as active so dismiss screen shows when user returns
+    setAlarmActive(true)
+
+    // Only send notifications if app is in background
+    if (document.visibilityState !== 'visible') {
+      showNotification(title, body, { tag: 'timer-alarm', renotify: true })
+      // Repeat every 30 seconds until dismissed
+      if (alarmIntervalRef.current) clearInterval(alarmIntervalRef.current)
+      alarmIntervalRef.current = setInterval(() => {
+        showNotification(title, body, { tag: 'timer-alarm', renotify: true })
+      }, 30000)
+    }
+    // If app becomes visible later, the alarmActive banner handles it
+  }, [])
+
+  // Stop the repeating alarm
+  const stopAlarm = useCallback(() => {
+    if (alarmIntervalRef.current) {
+      clearInterval(alarmIntervalRef.current)
+      alarmIntervalRef.current = null
+    }
+    setAlarmActive(false)
+  }, [])
+
+  // Clean up alarm on unmount
+  useEffect(() => () => stopAlarm(), [stopAlarm])
 
   // ── Per-mode independent interval refs ──
   const timerIntRef  = useRef(null)
@@ -441,13 +481,19 @@ export default function FocusTimer() {
             setTimeout(() => {
               setElFn(0); elRef.current = 0; tickRef.current = null
               setCompleted(cv => cv+1)
-              addSession({ date:new Date().toISOString(), duration:Math.round(secRef.current/60), type:'focus' })
-              notifyTimerDone(label, Math.round(secRef.current/60))
+              const mins = Math.round(secRef.current/60)
+              addSession({ date:new Date().toISOString(), duration:mins, type:'focus' })
               playTimerDone()
               haptic.success()
+              // Start repeating alarm if app is in background
+              startAlarm(label, mins)
               if (modeRef.current === label || label==='timer') {
                 setShowReward(true); arrangRef.current = randArr()
-                setTimeout(() => setShowReward(false), 4500)
+                setTimeout(() => {
+                  setShowReward(false)
+                  // Only auto-stop alarm if app is open — if user left, keep notifying
+                  if (document.visibilityState === 'visible') stopAlarm()
+                }, 4500)
               }
             }, 0)
             return 0
@@ -485,7 +531,7 @@ export default function FocusTimer() {
   // Reset only the current displayed mode
   const reset = () => {
     haptic.light()
-    if (mode==='timer')     { clearInterval(timerIntRef.current); timerIntRef.current=null; setTimerRunning(false); setTimerElapsed(0); timerElRef.current=0; timerTickRef.current=null; warned90Timer.current=false }
+    if (mode==='timer')     { clearInterval(timerIntRef.current); timerIntRef.current=null; setTimerRunning(false); setTimerElapsed(0); timerElRef.current=0; timerTickRef.current=null; warned90Timer.current=false; stopAlarm() }
     if (mode==='short')     { clearInterval(shortIntRef.current); shortIntRef.current=null; setShortRunning(false); setShortElapsed(0); shortElRef.current=0; shortTickRef.current=null; warned90Short.current=false }
     if (mode==='long')      { clearInterval(longIntRef.current);  longIntRef.current=null;  setLongRunning(false);  setLongElapsed(0);  longElRef.current=0;  longTickRef.current=null;  warned90Long.current=false  }
     if (mode==='stopwatch') { clearInterval(swIntRef.current);    swIntRef.current=null;    setSwRunning(false);    setSwElapsed(0);    swElRef.current=0 }
@@ -699,6 +745,22 @@ export default function FocusTimer() {
         </div>
       </div>
 
+      {/* ── ALARM BANNER — shown when timer ends while app is in background ── */}
+      {alarmActive&&!showReward&&(
+        <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.92)',backdropFilter:'blur(28px)',zIndex:100,animation:'fadeIn 0.4s ease'}}>
+          <div style={{textAlign:'center',padding:'0 44px',display:'flex',flexDirection:'column',alignItems:'center',gap:20}}>
+            <div style={{fontSize:72,lineHeight:1,animation:'alarmPulse 1s ease-in-out infinite alternate'}}>⏰</div>
+            <h2 style={{fontSize:28,fontWeight:900,color:'#fff',letterSpacing:'-1px',fontFamily:'Inter,sans-serif'}}>Timer Complete!</h2>
+            <p style={{fontSize:15,color:'rgba(255,255,255,0.6)',fontFamily:'Inter,sans-serif',lineHeight:1.5}}>Your session has ended. Notifications will keep ringing until you dismiss.</p>
+            <button
+              onClick={stopAlarm}
+              style={{marginTop:8,padding:'16px 48px',borderRadius:20,background:'linear-gradient(135deg,#60a5fa,#3b82f6)',border:'none',color:'#fff',fontSize:16,fontWeight:700,cursor:'pointer',fontFamily:'Inter,sans-serif',letterSpacing:'-0.3px',boxShadow:'0 4px 24px rgba(96,165,250,0.5)'}}>
+              ✓ Dismiss Alarm
+            </button>
+          </div>
+        </div>
+      )}
+
       {showReward&&(
         <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',background:'rgba(0,0,0,0.82)',backdropFilter:'blur(28px)',zIndex:100,animation:'fadeIn 0.5s ease'}}>
           <div style={{textAlign:'center',padding:'0 44px',animation:'scaleIn 0.5s cubic-bezier(0.16,1,0.3,1)'}}>
@@ -713,6 +775,7 @@ export default function FocusTimer() {
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes scaleIn{from{opacity:0;transform:scale(.7)}to{opacity:1;transform:scale(1)}}
         @keyframes starSpin{from{transform:rotate(0deg) scale(1)}50%{transform:rotate(180deg) scale(1.15)}to{transform:rotate(360deg) scale(1)}}
+        @keyframes alarmPulse{from{transform:scale(1) rotate(-8deg);filter:drop-shadow(0 0 20px rgba(251,191,36,0.6))}to{transform:scale(1.15) rotate(8deg);filter:drop-shadow(0 0 40px rgba(251,191,36,0.9))}}
       `}</style>
     </div>
   )
