@@ -11,6 +11,298 @@ import { backgroundGenerateForNote, invalidateCache } from '../../services/aiCac
 const FONT_SIZES  = [12, 14, 16, 18, 20, 24, 28]
 const TEXT_COLORS = ['#ffffff','#f87171','#fb923c','#facc15','#4ade80','#60a5fa','#c084fc','#f472b6']
 
+
+// ── IMAGE SYSTEM — float-based, inside contenteditable ──────────────────────
+//
+//  FINAL APPROACH — the only way text wraps around images in HTML:
+//
+//  Images live INSIDE the contenteditable as <img> elements with float:left
+//  or float:right. CSS float is the browser's only native text-wrap mechanism.
+//  A floated element is taken OUT of normal flow — typing above/below it does
+//  NOT push it. Text automatically wraps around it.
+//
+//  To keep images selectable and draggable after text is added, we:
+//    1. Set contenteditable="false" on the image's wrapper span so the cursor
+//       never enters the image.
+//    2. Give the image a high z-index so it visually appears above text.
+//    3. Attach pointerdown directly on the <img> to select it.
+//    4. Use a React portal overlay for resize dots/toolbar — they render outside
+//       the contenteditable so they never interfere with typing.
+//
+//  Move = change marginLeft/marginRight (float side) + re-insert img before a
+//  different sibling to change vertical position.
+//  Resize = change img width only, height stays 'auto' (aspect ratio preserved).
+//  Wrap modes: float:left / float:right / float:none (block, full row).
+
+// Inject CSS into the page once for image styling inside editors
+const IMG_STYLE_ID = 'studymate-img-css'
+if (!document.getElementById(IMG_STYLE_ID)) {
+  const s = document.createElement('style')
+  s.id = IMG_STYLE_ID
+  s.textContent = `
+    [contenteditable] img[data-sm-img] {
+      cursor: pointer !important;
+      border-radius: 10px;
+      max-width: 100%;
+      height: auto !important;
+      display: block;
+    }
+    [contenteditable] img[data-sm-img].sm-selected {
+      outline: 2.5px solid #60a5fa !important;
+      outline-offset: 2px;
+      box-shadow: 0 0 0 4px rgba(96,165,250,0.15);
+    }
+    [contenteditable] span[data-sm-wrap] {
+      display: block;
+      line-height: 0;
+      font-size: 0;
+      contenteditable: false;
+    }
+    [contenteditable] span[data-sm-wrap="left"]  { float: left;  margin-right: 12px; margin-bottom: 8px; }
+    [contenteditable] span[data-sm-wrap="right"] { float: right; margin-left:  12px; margin-bottom: 8px; }
+    [contenteditable] span[data-sm-wrap="none"]  { float: none;  display: block; margin: 10px 0; }
+  `
+  document.head.appendChild(s)
+}
+
+// ImageControls — rendered as a fixed overlay (outside contenteditable) when an image is selected
+function ImageControls({ imgEl, editorEl, onClose, onDelete }) {
+  const [rect, setRect]   = useState(null)
+  const [wrap, setWrap]   = useState(() => imgEl.closest('[data-sm-wrap]')?.dataset.smWrap || 'none')
+  const resizeRef = useRef(null)
+  const moveRef   = useRef(null)
+  const rafRef    = useRef(null)
+
+  const measure = useCallback(() => {
+    const r = imgEl.getBoundingClientRect()
+    setRect({ top: r.top, left: r.left, width: r.width, height: r.height })
+  }, [imgEl])
+
+  useEffect(() => {
+    measure()
+    window.addEventListener('scroll', measure, true)
+    window.addEventListener('resize', measure)
+    return () => {
+      window.removeEventListener('scroll', measure, true)
+      window.removeEventListener('resize', measure)
+      cancelAnimationFrame(rafRef.current)
+    }
+  }, [measure])
+
+  const getWrapper = () => imgEl.closest('[data-sm-wrap]')
+
+  // ── WRAP ────────────────────────────────────────────────────────────────
+  const applyWrap = (mode) => {
+    const wrapper = getWrapper()
+    if (!wrapper) return
+    wrapper.dataset.smWrap = mode
+    setWrap(mode)
+    if (mode === 'left') {
+      wrapper.style.cssText = 'float:left; margin-right:14px; margin-bottom:8px; margin-left:0; margin-top:4px; display:block; line-height:0; font-size:0;'
+    } else if (mode === 'right') {
+      wrapper.style.cssText = 'float:right; margin-left:14px; margin-bottom:8px; margin-right:0; margin-top:4px; display:block; line-height:0; font-size:0;'
+    } else {
+      wrapper.style.cssText = 'float:none; display:block; margin:10px 0; line-height:0; font-size:0; clear:both;'
+    }
+    setTimeout(measure, 30)
+  }
+
+  // ── RESIZE — width only, aspect ratio auto ───────────────────────────────
+  const onResizeDown = (e, corner) => {
+    e.preventDefault(); e.stopPropagation()
+    resizeRef.current = { corner, startX: e.clientX, startW: imgEl.offsetWidth }
+    window.addEventListener('pointermove', onResizeMove, { passive: false })
+    window.addEventListener('pointerup',   onResizeUp)
+  }
+  const onResizeMove = useCallback((e) => {
+    e.preventDefault()
+    const d = resizeRef.current; if (!d) return
+    const dx    = e.clientX - d.startX
+    const delta = (d.corner === 'nw' || d.corner === 'sw') ? -dx : dx
+    const newW  = Math.max(60, Math.min(d.startW + delta, window.innerWidth - 40))
+    imgEl.style.width  = newW + 'px'
+    imgEl.style.height = 'auto'
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(measure)
+  }, [measure])
+  const onResizeUp = useCallback(() => {
+    resizeRef.current = null
+    window.removeEventListener('pointermove', onResizeMove)
+    window.removeEventListener('pointerup',   onResizeUp)
+  }, [onResizeMove])
+
+  // ── MOVE ─────────────────────────────────────────────────────────────────
+  //
+  //  The core problem with contenteditable: text is stored as text nodes, not
+  //  elements. editor.children misses them entirely. We must use childNodes.
+  //  To get the Y position of a text node, we wrap it in a Range and call
+  //  getBoundingClientRect() on that range.
+
+  const getNodeRect = (node) => {
+    if (node.nodeType === Node.ELEMENT_NODE) {
+      return node.getBoundingClientRect()
+    }
+    // Text node — use Range to get its bounding rect
+    try {
+      const r = document.createRange()
+      r.selectNode(node)
+      return r.getBoundingClientRect()
+    } catch { return null }
+  }
+
+  const onMoveDown = (e) => {
+    e.preventDefault(); e.stopPropagation()
+    const wrapper = getWrapper()
+    if (!wrapper) return
+    if ((wrapper.dataset.smWrap || 'none') === 'none') applyWrap('left')
+    moveRef.current = {
+      startX:   e.clientX,
+      baseML:   parseFloat(wrapper.style.marginLeft)  || 0,
+      baseMR:   parseFloat(wrapper.style.marginRight) || 0,
+      wrapMode: wrapper.dataset.smWrap || 'left',
+      lastRef:  null,
+    }
+    window.addEventListener('pointermove', onMoveMove, { passive: false })
+    window.addEventListener('pointerup',   onMoveUp)
+  }
+
+  const onMoveMove = useCallback((e) => {
+    e.preventDefault()
+    const d = moveRef.current; if (!d) return
+    const wrapper = getWrapper()
+    if (!wrapper) return
+    // Use the passed editorEl directly — wrapper.closest('[contenteditable]') would
+    // wrongly match the wrapper itself (it has contenteditable="false")
+    const editor = editorEl
+    if (!editor) return
+
+    // ── Horizontal ──────────────────────────────────────────────────────────
+    const dx = e.clientX - d.startX
+    if (d.wrapMode === 'right') {
+      wrapper.style.marginRight = Math.max(0, d.baseMR - dx) + 'px'
+    } else {
+      wrapper.style.marginLeft  = Math.max(0, d.baseML + dx) + 'px'
+    }
+
+    // ── Vertical — scan ALL childNodes including text nodes ──────────────────
+    // Build list of {node, top, bottom} for every direct child of editor
+    const nodes = Array.from(editor.childNodes).filter(n => n !== wrapper)
+    if (nodes.length === 0) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(measure)
+      return
+    }
+
+    // For each node get its Y range
+    const nodeRects = nodes.map(n => {
+      const r = getNodeRect(n)
+      return { node: n, top: r ? r.top : 0, bottom: r ? r.bottom : 0, mid: r ? (r.top + r.bottom) / 2 : 0 }
+    }).filter(nr => nr.bottom > nr.top) // skip zero-height nodes
+
+    if (nodeRects.length === 0) {
+      cancelAnimationFrame(rafRef.current)
+      rafRef.current = requestAnimationFrame(measure)
+      return
+    }
+
+    // Find where pointer Y sits among nodes:
+    // → insert wrapper BEFORE the first node whose top is >= pointer Y
+    // → if pointer is below all nodes, append to end
+    let insertBefore = null
+    for (const nr of nodeRects) {
+      if (nr.mid > e.clientY) {
+        insertBefore = nr.node
+        break
+      }
+    }
+
+    // Only re-insert if target changed
+    const refId = insertBefore ? (insertBefore.nodeName + (insertBefore.textContent || '').slice(0, 15)) : '__end__'
+    if (refId !== d.lastRef) {
+      d.lastRef = refId
+      if (insertBefore) {
+        editor.insertBefore(wrapper, insertBefore)
+      } else {
+        editor.appendChild(wrapper)
+      }
+      // Keep marginTop clean after re-insert
+      wrapper.style.marginTop = '4px'
+    }
+
+    cancelAnimationFrame(rafRef.current)
+    rafRef.current = requestAnimationFrame(measure)
+  }, [measure])
+
+  const onMoveUp = useCallback(() => {
+    moveRef.current = null
+    window.removeEventListener('pointermove', onMoveMove)
+    window.removeEventListener('pointerup',   onMoveUp)
+  }, [onMoveMove])
+
+  if (!rect) return null
+
+  const DOT = 16, HALF = DOT / 2
+  const corners = {
+    nw: { top: rect.top - HALF,               left: rect.left - HALF,              cursor: 'nw-resize' },
+    ne: { top: rect.top - HALF,               left: rect.left + rect.width - HALF, cursor: 'ne-resize' },
+    sw: { top: rect.top + rect.height - HALF, left: rect.left - HALF,              cursor: 'sw-resize' },
+    se: { top: rect.top + rect.height - HALF, left: rect.left + rect.width - HALF, cursor: 'se-resize' },
+  }
+  const wrapBtnStyle = (mode) => ({
+    padding: '5px 8px', borderRadius: 7, border: 'none', cursor: 'pointer',
+    background: wrap === mode ? '#60a5fa' : 'rgba(255,255,255,0.10)',
+    color:      wrap === mode ? '#000'    : 'rgba(255,255,255,0.65)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    transition: 'background 0.15s',
+  })
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{ position:'fixed', inset:0, zIndex:498, background:'transparent' }} />
+
+      {/* Blue border + move handle */}
+      <div onPointerDown={onMoveDown} style={{ position:'fixed', top:rect.top-2, left:rect.left-2, width:rect.width+4, height:rect.height+4, border:'2px solid #60a5fa', borderRadius:10, cursor:'move', zIndex:500, touchAction:'none', boxShadow:'inset 0 0 0 1px rgba(96,165,250,0.15)' }} />
+
+      {/* Resize dots */}
+      {Object.entries(corners).map(([corner, pos]) => (
+        <div key={corner} onPointerDown={e => onResizeDown(e, corner)}
+          style={{ position:'fixed', top:pos.top, left:pos.left, width:DOT, height:DOT, borderRadius:'50%', background:'#fff', border:'2.5px solid #60a5fa', boxShadow:'0 2px 8px rgba(0,0,0,0.6)', cursor:pos.cursor, zIndex:502, touchAction:'none' }}
+        />
+      ))}
+
+      {/* Delete */}
+      <div onPointerDown={e => e.stopPropagation()} onClick={() => { const w = getWrapper(); w ? w.remove() : imgEl.remove(); onDelete() }}
+        style={{ position:'fixed', top:rect.top-12, left:rect.left+rect.width-12, width:24, height:24, borderRadius:'50%', background:'#ef4444', border:'2px solid #fff', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', zIndex:503, boxShadow:'0 2px 8px rgba(0,0,0,0.5)', fontSize:12, color:'#fff', fontWeight:800, lineHeight:1 }}>✕</div>
+
+      {/* Wrap toolbar */}
+      <div onPointerDown={e => e.stopPropagation()}
+        style={{ position:'fixed', top:rect.top+rect.height+8, left:rect.left+rect.width/2, transform:'translateX(-50%)', zIndex:503, background:'#1c1c1c', border:'1px solid rgba(255,255,255,0.14)', borderRadius:12, padding:'5px 8px', display:'flex', alignItems:'center', gap:4, boxShadow:'0 4px 24px rgba(0,0,0,0.75)', whiteSpace:'nowrap' }}>
+        <span style={{ fontSize:9, color:'rgba(255,255,255,0.3)', fontFamily:'Inter,sans-serif', fontWeight:700, textTransform:'uppercase', letterSpacing:'0.8px', paddingRight:2 }}>Wrap</span>
+        <button title="Block" style={wrapBtnStyle('none')} onClick={() => applyWrap('none')}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><line x1="3" y1="4" x2="21" y2="4"/><rect x="3" y="8" width="18" height="8" rx="1"/><line x1="3" y1="20" x2="21" y2="20"/></svg>
+        </button>
+        <button title="Wrap left" style={wrapBtnStyle('left')} onClick={() => applyWrap('left')}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <rect x="2" y="4" width="9" height="10" rx="1" fill={wrap==='left'?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.1)'} stroke="currentColor"/>
+            <line x1="14" y1="6" x2="22" y2="6"/><line x1="14" y1="9" x2="22" y2="9"/><line x1="14" y1="12" x2="22" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/><line x1="2" y1="21" x2="22" y2="21"/>
+          </svg>
+        </button>
+        <button title="Wrap right" style={wrapBtnStyle('right')} onClick={() => applyWrap('right')}>
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+            <rect x="13" y="4" width="9" height="10" rx="1" fill={wrap==='right'?'rgba(0,0,0,0.3)':'rgba(255,255,255,0.1)'} stroke="currentColor"/>
+            <line x1="2" y1="6" x2="10" y2="6"/><line x1="2" y1="9" x2="10" y2="9"/><line x1="2" y1="12" x2="10" y2="12"/>
+            <line x1="2" y1="18" x2="22" y2="18"/><line x1="2" y1="21" x2="22" y2="21"/>
+          </svg>
+        </button>
+        <div style={{ width:1, height:14, background:'rgba(255,255,255,0.1)', margin:'0 2px' }} />
+        <span style={{ fontSize:9, color:'rgba(255,255,255,0.28)', fontFamily:'Inter,sans-serif' }}>{Math.round(rect.width)}w</span>
+      </div>
+    </>
+  )
+}
+
 function InlineFlashcard({ card, onNext, onPrev, idx, total }) {
   const [flipped, setFlipped] = useState(false)
   useEffect(() => setFlipped(false), [idx])
@@ -66,6 +358,7 @@ export default function NoteEditor() {
 
   // ── REFS ──
   const editorRef      = useRef(null)
+  const editorScrollRef= useRef(null)   // the scrollable wrapper around contenteditable
   const fileInputRef   = useRef(null)
   const autoSaveRef    = useRef(null)
   const noteIdRef      = useRef(existing?.id || null)
@@ -101,9 +394,11 @@ export default function NoteEditor() {
   const [searchLoading,   setSearchLoading]  = useState(false)
   const [showSearch,      setShowSearch]     = useState(false)
   const [fcIdx,           setFcIdx]          = useState(0)
-  // Voice read state
   const [voiceReading,    setVoiceReading]   = useState(false)
   const [voicePaused,     setVoicePaused]    = useState(false)
+
+  // ── IMAGE STATE ──
+  const [selectedImg, setSelectedImg] = useState(null)
 
   // Sync state → refs on every render
   titleRef.current      = title
@@ -115,11 +410,29 @@ export default function NoteEditor() {
   // Load existing content on mount
   useEffect(() => {
     if (existing && editorRef.current) {
-      editorRef.current.innerHTML = existing.html || existing.content?.replace(/\n/g,'<br>') || ''
+      const html = existing.html || existing.content?.replace(/\n/g,'<br>') || ''
+      editorRef.current.innerHTML = html
+      // Re-attach image listeners for existing images
+      attachImageListeners()
     }
   }, []) // eslint-disable-line
 
-  // ── SAVE (zero deps, reads from refs) ──
+  // ── ATTACH IMAGE LISTENERS ──
+  // Images live inside the contenteditable wrapped in a span[data-sm-wrap].
+  // We attach pointerdown to each image so tapping selects it.
+  const attachImageListeners = useCallback(() => {
+    const el = editorRef.current; if (!el) return
+    el.querySelectorAll('img[data-sm-img]').forEach(img => {
+      if (img.dataset.smBound) return
+      img.dataset.smBound = '1'
+      img.addEventListener('pointerdown', (e) => {
+        e.preventDefault(); e.stopPropagation()
+        setSelectedImg(img)
+      })
+    })
+  }, [])
+
+  // ── SAVE ──
   const saveNow = useCallback(() => {
     haptic.light()
     const t2 = titleRef.current?.trim()
@@ -142,7 +455,6 @@ export default function NoteEditor() {
     }
     const now = new Date()
     setSavedDisplay(`Saved ${now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})}`)
-    // Trigger background cache generation after a note is saved
     if (noteIdRef.current && content.trim().length > 30) {
       const noteForCache = { id: noteIdRef.current, title: t2, content: content.trim() }
       setTimeout(() => backgroundGenerateForNote(noteForCache, aiService), 500)
@@ -163,6 +475,23 @@ export default function NoteEditor() {
     return () => { clearTimeout(autoSaveRef.current); saveNow() }
   }, [saveNow])
 
+  // Deselect image when tapping outside the image
+  useEffect(() => {
+    const dismiss = (e) => {
+      if (e.target.tagName !== 'IMG' || !e.target.dataset.smImg) {
+        if (selectedImg) selectedImg.classList.remove('sm-selected')
+        setSelectedImg(null)
+      }
+    }
+    document.addEventListener('pointerdown', dismiss)
+    return () => document.removeEventListener('pointerdown', dismiss)
+  }, [selectedImg])
+
+  // Add selected class to image when selected
+  useEffect(() => {
+    if (selectedImg) selectedImg.classList.add('sm-selected')
+  }, [selectedImg])
+
   // ── EDITOR HELPERS ──
   const exec = (cmd, val=null) => { document.execCommand(cmd, false, val); editorRef.current?.focus() }
   const applyColor = (col) => { setTextColor(col); exec('foreColor', col); setShowColorPicker(false) }
@@ -180,7 +509,7 @@ export default function NoteEditor() {
       node = walker.nextNode()
     }
     text = text.trim()
-    if (!text) return  // nothing to read — silently skip
+    if (!text) return
     window.speechSynthesis.cancel()
     const u = new SpeechSynthesisUtterance(text)
     u.rate = 1.0
@@ -194,10 +523,51 @@ export default function NoteEditor() {
   const resumeVoice = () => { window.speechSynthesis.resume(); setVoicePaused(false) }
   const stopVoice   = () => { window.speechSynthesis.cancel(); setVoiceReading(false); setVoicePaused(false) }
 
+  // ── INSERT IMAGE — wraps in a float span, inserts into contenteditable ──
+  // The span[data-sm-wrap] is the float container. The <img> inside never
+  // pushes text because it's inside a floated element (taken out of flow).
   const insertImage = (e) => {
     const file = e.target.files[0]; if (!file) return
+    e.target.value = ''
     const reader = new FileReader()
-    reader.onload = ev => { editorRef.current?.focus(); exec('insertHTML',`<img src="${ev.target.result}" style="max-width:100%;border-radius:10px;margin:8px 0;" />`) }
+    reader.onload = ev => {
+      const el = editorRef.current; if (!el) return
+      el.focus()
+      // Build wrapper span + img
+      const wrapper = document.createElement('span')
+      wrapper.dataset.smWrap = 'left'
+      wrapper.contentEditable = 'false'
+      wrapper.style.cssText = 'float:left; margin-right:14px; margin-bottom:8px; margin-top:4px; display:block; line-height:0; font-size:0;'
+      const img = document.createElement('img')
+      img.src = ev.target.result
+      img.dataset.smImg = '1'
+      img.style.cssText = 'width:220px; height:auto; border-radius:10px; display:block; cursor:pointer; max-width:100%;'
+      wrapper.appendChild(img)
+      // Insert at cursor, or append if no selection
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount > 0 && el.contains(sel.anchorNode)) {
+        const range = sel.getRangeAt(0)
+        range.collapse(true)
+        range.insertNode(wrapper)
+        // Move cursor after the wrapper
+        range.setStartAfter(wrapper)
+        range.collapse(true)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      } else {
+        el.appendChild(wrapper)
+      }
+      // Attach listener and select
+      setTimeout(() => {
+        img.dataset.smBound = '1'
+        img.addEventListener('pointerdown', (ev2) => {
+          ev2.preventDefault(); ev2.stopPropagation()
+          setSelectedImg(img)
+        })
+        setSelectedImg(img)
+        scheduleSave()
+      }, 50)
+    }
     reader.readAsDataURL(file)
   }
 
@@ -216,12 +586,10 @@ export default function NoteEditor() {
     try {
       let result
       const nid = noteIdRef.current
-      // Check cache first — load instantly if available
       const { getCachedOverview, getCachedFlashcards, getCachedQuestions } = await import('../../services/aiCache.service')
       if (mode === 'questions') {
         const cached = nid ? getCachedQuestions(nid) : null
         result = cached || await generateQuestionsFromText(content)
-        // Always shuffle for variety
         if (Array.isArray(result)) result = [...result].sort(() => Math.random() - 0.5)
       } else if (mode === 'flashcards') {
         const cached = nid ? getCachedFlashcards(nid) : null
@@ -330,7 +698,6 @@ export default function NoteEditor() {
             style={{ background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:8,padding:'4px 6px',color:'rgba(255,255,255,0.7)',fontSize:11,fontFamily:'Inter,sans-serif',outline:'none',cursor:'pointer',appearance:'none',width:46 }}>
             {FONT_SIZES.map(s=><option key={s} value={s} style={{background:'#111'}}>{s}</option>)}
           </select>
-          {/* Color picker button — picker is rendered via fixed overlay below */}
           <button onMouseDown={e=>{ e.preventDefault(); setShowColorPicker(s=>!s) }} style={{ width:32,height:32,borderRadius:9,background:showColorPicker?'rgba(255,255,255,0.14)':'rgba(255,255,255,0.05)',border:`1px solid ${showColorPicker?'rgba(255,255,255,0.25)':'rgba(255,255,255,0.08)'}`,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:1,flexShrink:0 }}>
             <span style={{fontSize:13,color:'#fff',fontWeight:800,lineHeight:1}}>A</span>
             <div style={{width:16,height:2.5,borderRadius:1.5,background:textColor}}/>
@@ -340,11 +707,8 @@ export default function NoteEditor() {
           <TB tip="Image"     onPress={()=>fileInputRef.current?.click()} svg={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>} />
           <input ref={fileInputRef} type="file" accept="image/*" onChange={insertImage} style={{display:'none'}}/>
           <TB tip="Checklist" active={showChecklist} onPress={()=>setShowChecklist(s=>!s)} svg={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>} />
-
         </div>
       </div>
-
-
 
       {/* Checklist */}
       {showChecklist && (
@@ -366,16 +730,27 @@ export default function NoteEditor() {
       )}
 
       {/* ── EDITOR ── */}
-      <div style={{ flex:1,overflowY:'auto',position:'relative',zIndex:1 }}>
-        <div ref={editorRef} contentEditable suppressContentEditableWarning onInput={scheduleSave}
+      <div ref={editorScrollRef} style={{ flex:1, overflowY:'auto', position:'relative', zIndex:1 }}>
+        <div ref={editorRef} contentEditable suppressContentEditableWarning
+          onInput={scheduleSave}
           data-placeholder="Start writing..."
-          style={{ padding:'16px 16px 120px',color:'rgba(255,255,255,0.88)',fontSize:fontSize+'px',lineHeight:1.75,fontFamily:'Inter,sans-serif',outline:'none',minHeight:'100%' }} />
+          style={{ padding:'16px 16px 120px', color:'rgba(255,255,255,0.88)', fontSize:fontSize+'px', lineHeight:1.75, fontFamily:'Inter,sans-serif', outline:'none', minHeight:'100%' }}
+        />
       </div>
 
-      {/* ── VOICE CONTROL BAR — above AI bar, visible while reading ── */}
+      {/* Image controls overlay — rendered outside editor, tracks selected image via getBoundingClientRect */}
+      {selectedImg && (
+        <ImageControls
+          imgEl={selectedImg}
+          editorEl={editorRef.current}
+          onClose={() => { if (selectedImg) selectedImg.classList.remove('sm-selected'); setSelectedImg(null) }}
+          onDelete={() => { setSelectedImg(null); scheduleSave() }}
+        />
+      )}
+
+      {/* ── VOICE CONTROL BAR ── */}
       {voiceReading && (
         <div style={{ borderTop:'1px solid rgba(248,113,113,0.15)',padding:'8px 14px',flexShrink:0,background:'rgba(0,0,0,0.95)',position:'relative',zIndex:4,display:'flex',alignItems:'center',gap:8 }}>
-          {/* Animated waveform */}
           <div style={{ flex:1,display:'flex',gap:2,height:20,alignItems:'center' }}>
             {Array.from({length:16},(_,i)=>(
               <div key={i} style={{ flex:1,background:'#60a5fa',borderRadius:2,height:`${30+Math.sin(i*0.7)*50}%`,animation:`voiceBar 0.9s ${(i*0.06).toFixed(2)}s ease-in-out infinite alternate` }} />
@@ -396,17 +771,11 @@ export default function NoteEditor() {
       {/* ── AI BAR ── */}
       <div style={{ borderTop:'1px solid rgba(255,255,255,0.06)',padding:'10px 12px',flexShrink:0,background:'#000',position:'relative',zIndex:3 }}>
         <div style={{ display:'flex',alignItems:'center',gap:6 }}>
-          {/* Voice Read button — labeled pill like Overview/Questions/Flashcards */}
           <button onClick={voiceReading?stopVoice:startVoiceRead}
             style={{ padding:'7px 12px',borderRadius:20,cursor:'pointer',fontFamily:'Inter,sans-serif',
-              background:voiceReading
-                ?'linear-gradient(135deg,rgba(248,113,113,0.8),rgba(239,68,68,0.55))'
-                :'rgba(255,255,255,0.07)',
-              border:'none',
-              color:voiceReading?'#fff':'rgba(255,255,255,0.45)',
-              fontSize:11,fontWeight:600,
-              display:'flex',alignItems:'center',gap:5,flexShrink:0,
-              transition:'all 0.2s' }}>
+              background:voiceReading?'linear-gradient(135deg,rgba(248,113,113,0.8),rgba(239,68,68,0.55))':'rgba(255,255,255,0.07)',
+              border:'none',color:voiceReading?'#fff':'rgba(255,255,255,0.45)',
+              fontSize:11,fontWeight:600,display:'flex',alignItems:'center',gap:5,flexShrink:0,transition:'all 0.2s' }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
               <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -455,13 +824,12 @@ export default function NoteEditor() {
         </div>
       )}
 
-      {/* ── COLOR PICKER — draggable floating panel ── */}
+      {/* ── COLOR PICKER ── */}
       {showColorPicker && (
         <div style={{ position:'fixed', inset:0, zIndex:300, pointerEvents:'none' }}>
           <div
             onMouseDown={e=>e.stopPropagation()}
             onPointerDown={e=>{
-              // start drag only on the handle bar (first 36px)
               if (e.target.dataset.handle !== 'true') return
               e.currentTarget.setPointerCapture(e.pointerId)
               const el = e.currentTarget
@@ -483,16 +851,10 @@ export default function NoteEditor() {
               top:   pickerPos.y !== null ? pickerPos.y : 'auto',
               bottom:pickerPos.y !== null ? 'auto'       : 110,
               transform: pickerPos.x === null ? 'translateX(-50%)' : 'none',
-              background:'#1c1c1c',
-              border:'1px solid rgba(255,255,255,0.16)',
-              borderRadius:18,
-              zIndex:301,
-              boxShadow:'0 8px 40px rgba(0,0,0,0.85)',
-              width:224,
-              pointerEvents:'all',
-              userSelect:'none',
+              background:'#1c1c1c', border:'1px solid rgba(255,255,255,0.16)',
+              borderRadius:18, zIndex:301, boxShadow:'0 8px 40px rgba(0,0,0,0.85)',
+              width:224, pointerEvents:'all', userSelect:'none',
             }}>
-            {/* Drag handle */}
             <div data-handle="true" style={{ padding:'10px 16px 6px',cursor:'grab',display:'flex',alignItems:'center',justifyContent:'space-between',borderBottom:'1px solid rgba(255,255,255,0.07)' }}>
               <span data-handle="true" style={{ fontSize:10,color:'rgba(255,255,255,0.35)',fontFamily:'Inter,sans-serif',fontWeight:700,textTransform:'uppercase',letterSpacing:'1px',pointerEvents:'none' }}>Text Colour</span>
               <div data-handle="true" style={{ display:'flex',gap:2,pointerEvents:'none' }}>
@@ -501,7 +863,6 @@ export default function NoteEditor() {
               <button onPointerDown={e=>e.stopPropagation()} onMouseDown={e=>{e.preventDefault();setShowColorPicker(false);setPickerPos({x:null,y:null})}}
                 style={{ background:'none',border:'none',color:'rgba(255,255,255,0.4)',fontSize:16,cursor:'pointer',lineHeight:1,padding:'0 2px' }}>×</button>
             </div>
-            {/* Colors grid */}
             <div style={{ padding:'12px 14px' }}>
               <div style={{display:'flex',gap:8,flexWrap:'wrap',justifyContent:'center'}}>
                 {TEXT_COLORS.map(col=>(
