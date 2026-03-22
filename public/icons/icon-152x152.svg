@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="110" fill="#000000"/>
+
+  <!-- Subtle blue glow layer -->
+  <rect width="512" height="512" rx="110" fill="url(#grad)" opacity="0.6"/>
+
+  <!-- Gradient definition -->
+  <defs>
+    <radialGradient id="grad" cx="50%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#3b82f6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#000000" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <!-- ✦ star / sparkle mark centred -->
+  <text
+    x="256"
+    y="346"
+    font-size="300"
+    font-family="serif"
+    text-anchor="middle"
+    fill="#60a5fa"
+    opacity="0.95"
+  >✦</text>
+
+  <!-- "SM" subtle label at bottom -->
+  <text
+    x="256"
+    y="460"
+    font-size="52"
+    font-family="Arial, sans-serif"
+    font-weight="700"
+    text-anchor="middle"
+    fill="rgba(255,255,255,0.25)"
+    letter-spacing="8"
+  >STUDYMATE</text>
+</svg>
