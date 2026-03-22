@@ -12,26 +12,59 @@ function applyTheme(theme) {
 
 export default function Settings() {
   const navigate = useNavigate()
-  const { refreshStreak } = useAppStore()
+  const { refreshStreak, notes, tasks, timerSessions, testResults } = useAppStore()
   const savedUser = JSON.parse(localStorage.getItem('studymate_user') || '{}')
   const [localName,    setLocalName]   = useState(savedUser.name || 'Student')
   const [theme,        setTheme]       = useState(getTheme)
   const [notifPerm,    setNotifPerm]   = useState(getNotificationPermission)
   const [showClear,    setShowClear]   = useState(false)
+  const [exportDone,   setExportDone]  = useState(false)
   const notifsOn = notifPerm === 'granted'
   const isDark = theme === 'dark'
 
   useEffect(() => { applyTheme(theme) }, [theme])
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+
   const saveName = () => {
     localStorage.setItem('studymate_user', JSON.stringify({ ...savedUser, name: localName }))
   }
+
   const handleSignOut = () => { localStorage.removeItem('studymate_user'); navigate('/signin') }
+
   const handleClearData = () => {
     useAppStore.setState({ timerSessions:[], testResults:[], notes:[], streak:0, todayStudied:0 })
     refreshStreak()
     setShowClear(false)
+  }
+
+  // ── EXPORT DATA — downloads all user data as a JSON backup ───────────────
+  // Useful before uninstalling the PWA, since uninstall clears localStorage.
+  const handleExportData = () => {
+    try {
+      const allData = {
+        exportedAt: new Date().toISOString(),
+        version:    '1.0.0',
+        user:       savedUser,
+        notes,
+        tasks,
+        timerSessions,
+        testResults,
+        settings:   useAppStore.getState().settings,
+        goals:      useAppStore.getState().goals,
+      }
+      const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
+      const url  = URL.createObjectURL(blob)
+      const a    = document.createElement('a')
+      a.href     = url
+      a.download = `studymate-backup-${new Date().toISOString().slice(0,10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setExportDone(true)
+      setTimeout(() => setExportDone(false), 3000)
+    } catch (err) {
+      console.error('Export failed', err)
+    }
   }
 
   const T = {
@@ -50,6 +83,11 @@ export default function Settings() {
     dangerBrd:isDark ? 'rgba(248,113,113,0.15)' : 'rgba(220,38,38,0.15)',
     dangerTxt:isDark ? '#f87171' : '#dc2626',
     green:    isDark ? '#4ade80' : '#16a34a',
+    greenBg:  isDark ? 'rgba(74,222,128,0.08)' : 'rgba(22,163,74,0.08)',
+    greenBrd: isDark ? 'rgba(74,222,128,0.2)'  : 'rgba(22,163,74,0.2)',
+    amber:    isDark ? '#fbbf24' : '#d97706',
+    amberBg:  isDark ? 'rgba(251,191,36,0.08)' : 'rgba(217,119,6,0.08)',
+    amberBrd: isDark ? 'rgba(251,191,36,0.2)'  : 'rgba(217,119,6,0.2)',
   }
 
   const inp = { background:T.inputBg, border:`1px solid ${T.inputBrd}`, borderRadius:10, padding:'9px 12px', color:T.text, fontSize:13, fontFamily:'Inter,sans-serif', outline:'none', width:'100%', boxSizing:'border-box' }
@@ -157,6 +195,71 @@ export default function Settings() {
               </div>
             }
           />
+        </Section>
+
+        {/* ── DATA & BACKUP ── */}
+        <Section title="Data & Backup">
+          {/* Updates info */}
+          <div style={{ padding:'14px 18px', borderBottom:`1px solid ${T.border2}` }}>
+            <div style={{ display:'flex',alignItems:'flex-start',gap:12 }}>
+              <div style={{ width:36,height:36,borderRadius:10,background:T.amberBg,border:`1px solid ${T.amberBrd}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.amber} strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              </div>
+              <div>
+                <p style={{ fontSize:13,fontWeight:600,color:T.text,fontFamily:'Inter,sans-serif',marginBottom:4 }}>App updates are automatic</p>
+                <p style={{ fontSize:11,color:T.muted,fontFamily:'Inter,sans-serif',lineHeight:1.5 }}>
+                  You never need to uninstall and reinstall to get updates. When a new version is available, a banner will appear at the bottom of the screen. Tap it to update instantly — your data is always safe.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Uninstall warning */}
+          <div style={{ padding:'14px 18px', borderBottom:`1px solid ${T.border2}` }}>
+            <div style={{ display:'flex',alignItems:'flex-start',gap:12 }}>
+              <div style={{ width:36,height:36,borderRadius:10,background:T.danger,border:`1px solid ${T.dangerBrd}`,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={T.dangerTxt} strokeWidth="2" strokeLinecap="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              </div>
+              <div>
+                <p style={{ fontSize:13,fontWeight:600,color:T.dangerTxt,fontFamily:'Inter,sans-serif',marginBottom:4 }}>⚠️ Uninstalling deletes your data</p>
+                <p style={{ fontSize:11,color:T.muted,fontFamily:'Inter,sans-serif',lineHeight:1.5 }}>
+                  If you uninstall the app from your home screen, all notes, tasks, sessions and progress will be permanently deleted. Export a backup first.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Export button */}
+          <div style={{ padding:'14px 18px' }}>
+            <p style={{ fontSize:12,color:T.muted,fontFamily:'Inter,sans-serif',marginBottom:12,lineHeight:1.5 }}>
+              Download all your data as a JSON file. Keep this as a backup before uninstalling or clearing your browser data.
+            </p>
+            <button
+              onClick={handleExportData}
+              style={{
+                width:'100%', padding:'12px', borderRadius:12,
+                background: exportDone ? T.greenBg : T.inputBg,
+                border: `1px solid ${exportDone ? T.greenBrd : T.border}`,
+                color: exportDone ? T.green : T.text,
+                fontSize:13, fontWeight:700, cursor:'pointer',
+                fontFamily:'Inter,sans-serif',
+                display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+                transition:'all 0.2s',
+              }}
+            >
+              {exportDone ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  Backup saved!
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                  Export Backup (.json)
+                </>
+              )}
+            </button>
+          </div>
         </Section>
 
         {/* ── ABOUT ── */}
