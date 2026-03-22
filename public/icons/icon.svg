@@ -1,0 +1,105 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0a0a0a"/>
+      <stop offset="100%" stop-color="#141414"/>
+    </linearGradient>
+    <linearGradient id="starGlow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="60%" stop-color="#e8d5ff"/>
+      <stop offset="100%" stop-color="#c084fc"/>
+    </linearGradient>
+    <linearGradient id="ring1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="ring2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#60a5fa" stop-opacity="0.2"/>
+    </linearGradient>
+    <linearGradient id="ring3" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0%" stop-color="#34d399" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0.15"/>
+    </linearGradient>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="6" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="starFilter">
+      <feGaussianBlur stdDeviation="3" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <clipPath id="roundedClip">
+      <rect width="512" height="512" rx="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- Background -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Subtle radial glow behind center -->
+  <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#7c3aed" stop-opacity="0.18"/>
+    <stop offset="60%" stop-color="#3730a3" stop-opacity="0.06"/>
+    <stop offset="100%" stop-color="#000" stop-opacity="0"/>
+  </radialGradient>
+  <rect width="512" height="512" rx="112" fill="url(#centerGlow)"/>
+
+  <!-- Orbital ring 1 — tilted ellipse, blue -->
+  <ellipse cx="256" cy="256" rx="158" ry="52"
+    fill="none" stroke="url(#ring1)" stroke-width="1.5"
+    transform="rotate(-30 256 256)" opacity="0.75"/>
+
+  <!-- Orbital ring 2 — tilted opposite, purple -->
+  <ellipse cx="256" cy="256" rx="148" ry="46"
+    fill="none" stroke="url(#ring2)" stroke-width="1.2"
+    transform="rotate(40 256 256)" opacity="0.65"/>
+
+  <!-- Orbital ring 3 — nearly flat, teal -->
+  <ellipse cx="256" cy="256" rx="168" ry="28"
+    fill="none" stroke="url(#ring3)" stroke-width="1"
+    transform="rotate(10 256 256)" opacity="0.55"/>
+
+  <!-- Small orbiting dots -->
+  <!-- Dot on ring 1 -->
+  <circle cx="332" cy="218" r="5" fill="#60a5fa" opacity="0.9"/>
+  <circle cx="332" cy="218" r="9" fill="#60a5fa" opacity="0.15"/>
+
+  <!-- Dot on ring 2 -->
+  <circle cx="174" cy="284" r="4" fill="#a78bfa" opacity="0.85"/>
+  <circle cx="174" cy="284" r="8" fill="#a78bfa" opacity="0.12"/>
+
+  <!-- Dot on ring 3 -->
+  <circle cx="360" cy="262" r="3.5" fill="#34d399" opacity="0.8"/>
+  <circle cx="360" cy="262" r="7" fill="#34d399" opacity="0.12"/>
+
+  <!-- Dot on ring 1 opposite side -->
+  <circle cx="178" cy="294" r="3" fill="#818cf8" opacity="0.7"/>
+
+  <!-- Central ✦ star — main symbol -->
+  <!-- Four-pointed star built from paths -->
+  <g filter="url(#starFilter)">
+    <path d="M256 164 L268 244 L348 256 L268 268 L256 348 L244 268 L164 256 L244 244 Z"
+      fill="url(#starGlow)" opacity="0.97"/>
+  </g>
+
+  <!-- Inner star highlight for crispness -->
+  <path d="M256 192 L264 248 L320 256 L264 264 L256 320 L248 264 L192 256 L248 248 Z"
+    fill="#fff" opacity="0.85"/>
+
+  <!-- Tiny accent dots at star tips -->
+  <circle cx="256" cy="162" r="3" fill="#e8d5ff" opacity="0.7"/>
+  <circle cx="256" cy="350" r="3" fill="#e8d5ff" opacity="0.7"/>
+  <circle cx="162" cy="256" r="3" fill="#e8d5ff" opacity="0.7"/>
+  <circle cx="350" cy="256" r="3" fill="#e8d5ff" opacity="0.7"/>
+
+  <!-- Small scattered micro-dots for space feel -->
+  <circle cx="140" cy="140" r="1.5" fill="#60a5fa" opacity="0.4"/>
+  <circle cx="372" cy="128" r="1.5" fill="#a78bfa" opacity="0.35"/>
+  <circle cx="388" cy="374" r="1.5" fill="#34d399" opacity="0.35"/>
+  <circle cx="128" cy="370" r="1.5" fill="#60a5fa" opacity="0.3"/>
+  <circle cx="410" cy="200" r="1" fill="#fff" opacity="0.3"/>
+  <circle cx="108" cy="220" r="1" fill="#fff" opacity="0.25"/>
+  <circle cx="300" cy="108" r="1" fill="#fff" opacity="0.25"/>
+  <circle cx="200" cy="400" r="1" fill="#fff" opacity="0.2"/>
+</svg>
