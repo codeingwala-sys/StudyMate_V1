@@ -1,0 +1,236 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+
+/* ══════════════════════════════════════════════
+   DARK MODE (default)
+══════════════════════════════════════════════ */
+:root {
+  --bg:              #000000;
+  --bg2:             #0a0a0a;
+  --surface:         #0e0e0e;
+  --card:            #111111;
+  --card2:           #161616;
+  --border:          rgba(255,255,255,0.08);
+  --border-med:      rgba(255,255,255,0.12);
+  --border-strong:   rgba(255,255,255,0.20);
+  --text:            #ffffff;
+  --text-secondary:  rgba(255,255,255,0.65);
+  --text-muted:      rgba(255,255,255,0.35);
+  --text-faint:      rgba(255,255,255,0.18);
+  --input-bg:        rgba(255,255,255,0.05);
+  --input-bg-focus:  rgba(255,255,255,0.08);
+  --nav-bg:          rgba(0,0,0,0.96);
+  --overlay:         rgba(0,0,0,0.85);
+  --shadow:          0 4px 24px rgba(0,0,0,0.6);
+  --shadow-sm:       0 2px 12px rgba(0,0,0,0.4);
+
+  /* Accent colors */
+  --green:    #4ade80;
+  --green-bg: rgba(74,222,128,0.10);
+  --red:      #f87171;
+  --red-bg:   rgba(248,113,113,0.10);
+  --amber:    #fbbf24;
+  --amber-bg: rgba(251,191,36,0.10);
+  --blue:     #60a5fa;
+  --blue-bg:  rgba(96,165,250,0.10);
+  --purple:   #a78bfa;
+  --purple-bg:rgba(167,139,250,0.10);
+  --yellow:   #fbbf24;
+
+  --font: 'Inter', sans-serif;
+  --mono: 'DM Mono', monospace;
+  --radius-sm: 8px;
+  --radius:    14px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+}
+
+/* ══════════════════════════════════════════════
+   LIGHT MODE
+══════════════════════════════════════════════ */
+[data-theme="light"] {
+  --bg:              #f0f0f0;
+  --bg2:             #e8e8e8;
+  --surface:         #ebebeb;
+  --card:            #ffffff;
+  --card2:           #f7f7f7;
+  --border:          rgba(0,0,0,0.07);
+  --border-med:      rgba(0,0,0,0.12);
+  --border-strong:   rgba(0,0,0,0.22);
+  --text:            #0a0a0a;
+  --text-secondary:  rgba(0,0,0,0.60);
+  --text-muted:      rgba(0,0,0,0.38);
+  --text-faint:      rgba(0,0,0,0.18);
+  --input-bg:        rgba(0,0,0,0.04);
+  --input-bg-focus:  rgba(0,0,0,0.07);
+  --nav-bg:          rgba(240,240,240,0.97);
+  --overlay:         rgba(0,0,0,0.5);
+  --shadow:          0 4px 24px rgba(0,0,0,0.12);
+  --shadow-sm:       0 2px 12px rgba(0,0,0,0.08);
+
+  --green:    #16a34a;
+  --green-bg: rgba(22,163,74,0.10);
+  --red:      #dc2626;
+  --red-bg:   rgba(220,38,38,0.10);
+  --amber:    #d97706;
+  --amber-bg: rgba(217,119,6,0.10);
+  --blue:     #2563eb;
+  --blue-bg:  rgba(37,99,235,0.10);
+  --purple:   #7c3aed;
+  --purple-bg:rgba(124,58,237,0.10);
+  --yellow:   #d97706;
+}
+
+/* ══════════════════════════════════════════════
+   BASE RESET
+══════════════════════════════════════════════ */
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body, #root { height: 100%; width: 100%; overflow: hidden; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+::-webkit-scrollbar { width: 0; height: 0; }
+
+/* ══════════════════════════════════════════════
+   APP BACKGROUND + BOTTOM GLOW
+══════════════════════════════════════════════ */
+.app-bg {
+  position: relative;
+  background: var(--bg);
+  overflow: hidden;
+  transition: background 0.3s ease;
+}
+
+/* Bottom gradient glow — fixed so it shows through all scrollable content */
+.app-bg::before {
+  content: '';
+  position: fixed;
+  bottom: -80px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 600px;
+  height: 500px;
+  border-radius: 50%;
+  animation: glowCycleDark 16s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+[data-theme="light"] .app-bg::before {
+  animation: glowCycleLight 16s ease-in-out infinite;
+}
+
+@keyframes glowCycleDark {
+  0%   { background: radial-gradient(ellipse at center, rgba(59,130,246,0.13) 0%, transparent 68%); }
+  25%  { background: radial-gradient(ellipse at center, rgba(139,92,246,0.11) 0%, transparent 68%); }
+  50%  { background: radial-gradient(ellipse at center, rgba(236,72,153,0.10) 0%, transparent 68%); }
+  75%  { background: radial-gradient(ellipse at center, rgba(6,182,212,0.11)  0%, transparent 68%); }
+  100% { background: radial-gradient(ellipse at center, rgba(59,130,246,0.13) 0%, transparent 68%); }
+}
+
+@keyframes glowCycleLight {
+  0%   { background: radial-gradient(ellipse at center, rgba(59,130,246,0.18) 0%, transparent 65%); }
+  25%  { background: radial-gradient(ellipse at center, rgba(139,92,246,0.15) 0%, transparent 65%); }
+  50%  { background: radial-gradient(ellipse at center, rgba(236,72,153,0.13) 0%, transparent 65%); }
+  75%  { background: radial-gradient(ellipse at center, rgba(6,182,212,0.15)  0%, transparent 65%); }
+  100% { background: radial-gradient(ellipse at center, rgba(59,130,246,0.18) 0%, transparent 65%); }
+}
+
+/* ══════════════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════════════ */
+.page-scroll {
+  position: relative; z-index: 1;
+  flex: 1; overflow-y: auto; overflow-x: hidden;
+  background: transparent !important;
+  transition: background 0.3s ease;
+}
+.page-scroll::-webkit-scrollbar { display: none; }
+.page-pad { padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 20px; background: transparent; }
+
+/* Ensure all direct page containers are transparent so gradient shows through */
+.page-scroll > div:first-child { background: transparent !important; }
+
+/* ══════════════════════════════════════════════
+   CARD + SECTION LABEL
+══════════════════════════════════════════════ */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-muted);
+  transition: color 0.3s;
+}
+
+/* ══════════════════════════════════════════════
+   INPUTS
+══════════════════════════════════════════════ */
+.input {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  color: var(--text);
+  font-size: 14px;
+  font-family: var(--font);
+  outline: none;
+  transition: border-color 0.2s, background 0.2s, color 0.3s;
+}
+.input:focus { border-color: var(--border-strong); background: var(--input-bg-focus); }
+.input::placeholder { color: var(--text-muted); }
+textarea.input { resize: none; }
+select.input { appearance: none; cursor: pointer; }
+
+/* ══════════════════════════════════════════════
+   BOTTOM NAV — theme-aware
+══════════════════════════════════════════════ */
+.bottom-nav {
+  background: var(--nav-bg);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-top: 1px solid var(--border);
+  transition: background 0.3s, border-color 0.3s;
+}
+
+/* ══════════════════════════════════════════════
+   PRESS ANIMATION
+══════════════════════════════════════════════ */
+.pressable { cursor: pointer; user-select: none; transition: transform 0.12s ease, opacity 0.12s ease; }
+.pressable:active { transform: scale(0.97); opacity: 0.85; }
+
+/* ══════════════════════════════════════════════
+   ANIMATIONS
+══════════════════════════════════════════════ */
+@keyframes fadeUp   { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+@keyframes fadeIn   { from{opacity:0} to{opacity:1} }
+@keyframes scaleIn  { from{opacity:0;transform:scale(0.92)} to{opacity:1;transform:scale(1)} }
+@keyframes slideUp  { from{transform:translateY(100%)} to{transform:translateY(0)} }
+@keyframes spin     { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+.anim-up   { animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-up-1 { animation: fadeUp 0.4s 0.06s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-up-2 { animation: fadeUp 0.4s 0.12s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-up-3 { animation: fadeUp 0.4s 0.18s cubic-bezier(0.16,1,0.3,1) both; }
+.anim-up-4 { animation: fadeUp 0.4s 0.24s cubic-bezier(0.16,1,0.3,1) both; }
+
+.tag {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  background: var(--input-bg); color: var(--text-secondary);
+}
