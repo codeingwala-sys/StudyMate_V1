@@ -12,3 +12,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <App />
   </React.StrictMode>
 )
+
+// Register service worker for PWA (vite-plugin-pwa handles this automatically,
+// but this is a manual fallback in case autoUpdate doesn't fire)
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      if (registrations.length === 0) {
+        navigator.serviceWorker.register('/sw.js').catch(() => {
+          // sw.js is generated at build time — safe to ignore in dev
+        })
+      }
+    })
+  })
+}
