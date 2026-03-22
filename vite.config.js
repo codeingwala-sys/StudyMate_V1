@@ -8,12 +8,13 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/*.svg', 'icons/*.png'],
+      devOptions: {
+        enabled: true, // lets you test PWA in dev mode (npm run dev)
+      },
       workbox: {
-        // Cache everything for full offline support
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         runtimeCaching: [
           {
-            // Cache Google Fonts
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: 'CacheFirst',
             options: {
@@ -32,7 +33,6 @@ export default defineConfig({
             },
           },
           {
-            // For API calls — network first, fall back to cache
             urlPattern: /^https:\/\/api\.groq\.com\/.*/i,
             handler: 'NetworkFirst',
             options: {
@@ -56,18 +56,24 @@ export default defineConfig({
         start_url: '/',
         categories: ['education', 'productivity'],
         icons: [
-          { src: '/icons/icon-72x72.svg',   sizes: '72x72',   type: 'image/svg+xml' },
-          { src: '/icons/icon-96x96.svg',   sizes: '96x96',   type: 'image/svg+xml' },
-          { src: '/icons/icon-128x128.svg', sizes: '128x128', type: 'image/svg+xml' },
-          { src: '/icons/icon-144x144.svg', sizes: '144x144', type: 'image/svg+xml' },
-          { src: '/icons/icon-152x152.svg', sizes: '152x152', type: 'image/svg+xml' },
-          { src: '/icons/icon-192x192.svg', sizes: '192x192', type: 'image/svg+xml', purpose: 'any' },
-          { src: '/icons/icon-384x384.svg', sizes: '384x384', type: 'image/svg+xml' },
-          { src: '/icons/icon-512x512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'any' },
+          // ── PNG icons (required by Android to trigger install prompt) ──
+          { src: '/icons/icon-192x192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: '/icons/maskable-512x512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+
+          // ── SVG icons (fallback for other platforms) ──
+          { src: '/icons/icon-72x72.svg',       sizes: '72x72',   type: 'image/svg+xml' },
+          { src: '/icons/icon-96x96.svg',       sizes: '96x96',   type: 'image/svg+xml' },
+          { src: '/icons/icon-128x128.svg',     sizes: '128x128', type: 'image/svg+xml' },
+          { src: '/icons/icon-144x144.svg',     sizes: '144x144', type: 'image/svg+xml' },
+          { src: '/icons/icon-152x152.svg',     sizes: '152x152', type: 'image/svg+xml' },
+          { src: '/icons/icon-192x192.svg',     sizes: '192x192', type: 'image/svg+xml' },
+          { src: '/icons/icon-384x384.svg',     sizes: '384x384', type: 'image/svg+xml' },
+          { src: '/icons/icon-512x512.svg',     sizes: '512x512', type: 'image/svg+xml' },
           { src: '/icons/maskable-512x512.svg', sizes: '512x512', type: 'image/svg+xml', purpose: 'maskable' },
         ],
         screenshots: [
-          { src: '/icons/icon-512x512.svg', sizes: '512x512', type: 'image/svg+xml', form_factor: 'narrow' },
+          { src: '/icons/icon-512x512.png', sizes: '512x512', type: 'image/png', form_factor: 'narrow' },
         ],
       },
     }),
