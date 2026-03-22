@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useTheme } from '../../app/useTheme'
 import { haptic } from '../../utils/haptics'
 import { useAppStore } from '../../app/store'
@@ -8,6 +8,107 @@ const PRIORITIES = ['High', 'Medium', 'Low']
 const TASK_TYPES = ['Study', 'Revision', 'Practice', 'Break', 'Exercise', 'Other']
 const COLORS = { High: '#f87171', Medium: '#fbbf24', Low: '#4ade80' }
 
+// ── Uncontrolled form field — does NOT re-render parent on every keystroke ──
+// This is the fix for the keyboard dismissing after each letter.
+// The root cause: every onChange on a controlled input triggers setState →
+// re-render → the Add-task container remounts → keyboard dismisses.
+// Solution: use uncontrolled inputs (refs) for all text fields inside the form.
+function TaskForm({ onAdd, onCancel, viewDate, t }) {
+  const titleRef    = useRef(null)
+  const timeRef     = useRef(null)
+  const durationRef = useRef(null)
+  const notesRef    = useRef(null)
+  const [priority,  setPriority]  = useState('Medium')
+  const [taskType,  setTaskType]  = useState('Study')
+
+  const inp = {
+    background: t.inputBg, border: `1px solid ${t.border}`,
+    borderRadius: 10, padding: '10px 12px', color: t.text,
+    fontSize: 13, fontFamily: 'Inter,sans-serif', outline: 'none',
+    width: '100%', boxSizing: 'border-box',
+  }
+
+  const handleAdd = () => {
+    const title = titleRef.current?.value?.trim()
+    if (!title) return
+    haptic.success()
+    onAdd({
+      title,
+      time:     timeRef.current?.value     || '',
+      duration: durationRef.current?.value || '',
+      notes:    notesRef.current?.value    || '',
+      priority,
+      type: taskType,
+      date: viewDate.toISOString(),
+    })
+  }
+
+  const F = ({ label, children, required }) => (
+    <div style={{ marginBottom: 12 }}>
+      <p style={{ fontSize:10, color:t.textMuted, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.9px', marginBottom:6, fontFamily:'Inter,sans-serif' }}>
+        {label}{required && ' *'}
+      </p>
+      {children}
+    </div>
+  )
+
+  return (
+    <div style={{ background:t.card, border:`1px solid ${t.border}`, borderRadius:20, padding:18, marginBottom:14, animation:'fadeIn 0.2s ease' }}>
+      <F label="Task Title" required>
+        <input
+          ref={titleRef}
+          placeholder="What do you need to do?"
+          defaultValue=""
+          // KEY FIX: no onChange/value — this is uncontrolled.
+          // The input handles its own state; we only read it on submit.
+          style={inp}
+          // Keep keyboard open on mobile
+          autoFocus
+        />
+      </F>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+        <F label="Time">
+          <input ref={timeRef} type="time" defaultValue="" style={inp} />
+        </F>
+        <F label="Duration">
+          <input ref={durationRef} placeholder="e.g. 1h 30m" defaultValue="" style={inp} />
+        </F>
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+        <F label="Priority">
+          <div style={{ display:'flex', gap:5 }}>
+            {PRIORITIES.map(p => (
+              <button key={p} onClick={() => setPriority(p)} style={{
+                flex:1, padding:'7px 4px', borderRadius:8, fontFamily:'Inter,sans-serif',
+                background: priority === p ? COLORS[p] : t.inputBg,
+                border: 'none',
+                color: priority === p ? '#000' : t.textMuted,
+                fontSize:11, fontWeight:600, cursor:'pointer',
+              }}>{p}</button>
+            ))}
+          </div>
+        </F>
+        <F label="Type">
+          <select
+            value={taskType}
+            onChange={e => setTaskType(e.target.value)}
+            style={{ ...inp, appearance:'none', cursor:'pointer' }}
+          >
+            {TASK_TYPES.map(ty => <option key={ty} value={ty}>{ty}</option>)}
+          </select>
+        </F>
+      </div>
+      <F label="Notes (optional)">
+        <input ref={notesRef} placeholder="Any extra details..." defaultValue="" style={inp} />
+      </F>
+      <div style={{ display:'flex', gap:8, marginTop:4 }}>
+        <button onClick={onCancel} style={{ flex:1, padding:'12px', borderRadius:12, background:t.inputBg, border:'none', color:t.textSec, fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'Inter,sans-serif' }}>Cancel</button>
+        <button onClick={handleAdd} style={{ flex:2, padding:'12px', borderRadius:12, background:'#fff', border:'none', color:'#000', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'Inter,sans-serif' }}>Add Task</button>
+      </div>
+    </div>
+  )
+}
+
 export default function DailyPlanner() {
   const { isDark, t } = useTheme()
   const { tasks, addTask, toggleTask, deleteTask } = useAppStore()
@@ -15,7 +116,6 @@ export default function DailyPlanner() {
   const [viewDate, setViewDate]  = useState(today)
   const [showAdd, setShowAdd]    = useState(false)
   const [weekView, setWeekView]  = useState(false)
-  const [form, setForm] = useState({ title:'', time:'', duration:'', priority:'Medium', type:'Study', notes:'' })
 
   // Build calendar: current month
   const [calMonth, setCalMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1))
@@ -28,16 +128,12 @@ export default function DailyPlanner() {
 
   const getDateTasks = (d) => tasks.filter(t => new Date(t.date||Date.now()).toDateString() === d.toDateString())
 
-  const handleAdd = () => {
-    if (!form.title.trim()) return
-    haptic.success()
-    addTask({ ...form, date: viewDate.toISOString() })
-    setForm({ title:'',time:'',duration:'',priority:'Medium',type:'Study',notes:'' })
+  const handleAdd = useCallback((formData) => {
+    addTask(formData)
     setShowAdd(false)
-  }
+  }, [addTask])
 
   const copyWeekTasks = () => {
-    // Copy this week's tasks to next week
     const weekStart = new Date(viewDate)
     weekStart.setDate(weekStart.getDate() - weekStart.getDay())
     const thisWeek = Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d})
@@ -56,15 +152,6 @@ export default function DailyPlanner() {
   weekStart.setDate(weekStart.getDate() - weekStart.getDay())
   const weekDays = Array.from({length:7},(_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d})
 
-  const F = ({ label, children, required }) => (
-    <div style={{ marginBottom:12 }}>
-      <p style={{ fontSize:10,color:t.textMuted,fontWeight:700,textTransform:'uppercase',letterSpacing:'0.9px',marginBottom:6,fontFamily:'Inter,sans-serif' }}>{label}{required&&' *'}</p>
-      {children}
-    </div>
-  )
-
-  const inp = { background:t.inputBg,border:`1px solid ${t.border}`,borderRadius:10,padding:'10px 12px',color:t.text,fontSize:13,fontFamily:'Inter,sans-serif',outline:'none',width:'100%',boxSizing:'border-box' }
-
   return (
     <div style={{ minHeight:'100vh' }}>
       <Header title="Planner" back right={
@@ -78,17 +165,14 @@ export default function DailyPlanner() {
 
         {/* ── CALENDAR ── */}
         <div style={{ background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:'16px',marginBottom:16 }}>
-          {/* Month nav */}
           <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12 }}>
             <button onClick={()=>setCalMonth(d=>{const n=new Date(d);n.setMonth(n.getMonth()-1);return n})} style={{ width:28,height:28,borderRadius:8,background:t.inputBg,border:'none',color:t.textSec,cursor:'pointer',fontSize:14 }}>‹</button>
             <p style={{ fontSize:14,fontWeight:700,color:t.text,fontFamily:'Inter,sans-serif' }}>{monthName}</p>
             <button onClick={()=>setCalMonth(d=>{const n=new Date(d);n.setMonth(n.getMonth()+1);return n})} style={{ width:28,height:28,borderRadius:8,background:t.inputBg,border:'none',color:t.textSec,cursor:'pointer',fontSize:14 }}>›</button>
           </div>
-          {/* Weekday headers */}
           <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2,marginBottom:6 }}>
             {['S','M','T','W','T','F','S'].map((d,i)=><div key={i} style={{ textAlign:'center',fontSize:10,color:t.textFaint,fontFamily:'Inter,sans-serif',fontWeight:600,padding:'4px 0' }}>{d}</div>)}
           </div>
-          {/* Days grid */}
           <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:2 }}>
             {Array.from({length:firstDay},(_,i)=><div key={'e'+i} />)}
             {Array.from({length:daysInMonth},(_,i)=>{
@@ -106,7 +190,7 @@ export default function DailyPlanner() {
           </div>
         </div>
 
-        {/* ── WEEK ROW (if week view) ── */}
+        {/* ── WEEK ROW ── */}
         {weekView && (
           <div style={{ display:'grid',gridTemplateColumns:'repeat(7,1fr)',gap:4,marginBottom:16 }}>
             {weekDays.map((d,i)=>{
@@ -123,7 +207,7 @@ export default function DailyPlanner() {
           </div>
         )}
 
-        {/* ── SELECTED DAY ── */}
+        {/* ── SELECTED DAY HEADER ── */}
         <div style={{ display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12 }}>
           <div>
             <p style={{ fontSize:13,fontWeight:700,color:t.text,fontFamily:'Inter,sans-serif' }}>
@@ -131,43 +215,32 @@ export default function DailyPlanner() {
             </p>
             {dayTasks.length>0&&<p style={{ fontSize:11,color:t.textMuted,fontFamily:'Inter,sans-serif',marginTop:2 }}>{doneTasks}/{dayTasks.length} done</p>}
           </div>
-          <button onClick={()=>setShowAdd(s=>!s)} style={{ width:34,height:34,borderRadius:10,background:'#fff',border:'none',color:'#000',fontSize:18,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>+</button>
+          <button
+            onClick={()=>setShowAdd(s=>!s)}
+            style={{ width:34,height:34,borderRadius:10,background:'#fff',border:'none',color:'#000',fontSize:18,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center' }}>
+            {showAdd ? '×' : '+'}
+          </button>
         </div>
 
         {/* Progress bar */}
-        {dayTasks.length>0&&<div style={{ height:2,background:t.inputBg,borderRadius:1,overflow:'hidden',marginBottom:14 }}>
-          <div style={{ height:'100%',background:'#4ade80',width:`${(doneTasks/dayTasks.length)*100}%`,transition:'width 0.4s ease' }} />
-        </div>}
-
-        {/* Add form */}
-        {showAdd && (
-          <div style={{ background:t.card,border:`1px solid ${t.border}`,borderRadius:20,padding:18,marginBottom:14,animation:'fadeIn 0.2s ease' }}>
-            <F label="Task Title" required><input placeholder="What do you need to do?" value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} style={inp} /></F>
-            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
-              <F label="Time"><input type="time" value={form.time} onChange={e=>setForm(f=>({...f,time:e.target.value}))} style={inp} /></F>
-              <F label="Duration"><input placeholder="e.g. 1h 30m" value={form.duration} onChange={e=>setForm(f=>({...f,duration:e.target.value}))} style={inp} /></F>
-            </div>
-            <div style={{ display:'grid',gridTemplateColumns:'1fr 1fr',gap:8 }}>
-              <F label="Priority">
-                <div style={{ display:'flex',gap:5 }}>
-                  {PRIORITIES.map(p=><button key={p} onClick={()=>setForm(f=>({...f,priority:p}))} style={{ flex:1,padding:'7px 4px',borderRadius:8,fontFamily:'Inter,sans-serif',background:form.priority===p?COLORS[p]:t.inputBg,border:'none',color:form.priority===p?'#000':t.textMuted,fontSize:11,fontWeight:600,cursor:'pointer' }}>{p}</button>)}
-                </div>
-              </F>
-              <F label="Type">
-                <select value={form.type} onChange={e=>setForm(f=>({...f,type:e.target.value}))} style={{...inp,appearance:'none',cursor:'pointer'}}>
-                  {TASK_TYPES.map(t=><option key={t} value={t} style={{background:t.card}}>{t}</option>)}
-                </select>
-              </F>
-            </div>
-            <F label="Notes (optional)"><input placeholder="Any extra details..." value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} style={inp} /></F>
-            <div style={{ display:'flex',gap:8,marginTop:4 }}>
-              <button onClick={()=>setShowAdd(false)} style={{ flex:1,padding:'12px',borderRadius:12,background:t.inputBg,border:'none',color:t.textSec,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif' }}>Cancel</button>
-              <button onClick={handleAdd} style={{ flex:2,padding:'12px',borderRadius:12,background:'#fff',border:'none',color:'#000',fontSize:13,fontWeight:700,cursor:'pointer',fontFamily:'Inter,sans-serif' }}>Add Task</button>
-            </div>
+        {dayTasks.length>0&&(
+          <div style={{ height:2,background:t.inputBg,borderRadius:1,overflow:'hidden',marginBottom:14 }}>
+            <div style={{ height:'100%',background:'#4ade80',width:`${(doneTasks/dayTasks.length)*100}%`,transition:'width 0.4s ease' }} />
           </div>
         )}
 
-        {/* Tasks */}
+        {/* ── ADD FORM — uncontrolled, keyboard stays open ── */}
+        {showAdd && (
+          <TaskForm
+            key={viewDate.toDateString()} // remount only when date changes, not on every keystroke
+            viewDate={viewDate}
+            t={t}
+            onAdd={handleAdd}
+            onCancel={() => setShowAdd(false)}
+          />
+        )}
+
+        {/* Empty state */}
         {dayTasks.length===0&&!showAdd&&(
           <div style={{ textAlign:'center',padding:'40px 0' }}>
             <p style={{ fontSize:14,color:t.textMuted,fontFamily:'Inter,sans-serif' }}>No tasks planned for this day</p>
@@ -175,6 +248,7 @@ export default function DailyPlanner() {
           </div>
         )}
 
+        {/* Task list */}
         {[...dayTasks].sort((a,b)=>(a.time||'99:99').localeCompare(b.time||'99:99')).map(task=>(
           <div key={task.id} style={{ display:'flex',alignItems:'flex-start',gap:14,padding:'14px 16px',background:t.card,border:`1px solid ${task.priority?COLORS[task.priority]+'22':t.border}`,borderLeft:`3px solid ${task.priority?COLORS[task.priority]:t.borderMed}`,borderRadius:14,marginBottom:8 }}>
             <div onClick={()=>{ haptic.light(); toggleTask(task.id) }} className="pressable" style={{ width:20,height:20,borderRadius:'50%',flexShrink:0,marginTop:2,border:task.done?'none':`1.5px solid ${t.borderMed}`,background:task.done?t.green:'transparent',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer' }}>
