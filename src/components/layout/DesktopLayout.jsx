@@ -225,6 +225,9 @@ function DesktopHome({ t, isDark }) {
             </div>
             <span style={{ fontSize: 12, fontWeight: 700, color: goalPct >= 100 ? t.green : t.textMuted, fontFamily: 'Inter,sans-serif' }}>{Math.round(goalPct)}% goal</span>
           </div>
+          {!saved.email && (
+            <button onClick={() => nav('/signin')} style={{ padding: '8px 18px', borderRadius: 20, background: t.text, border: 'none', color: t.bg, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'Inter,sans-serif' }}>Sign In</button>
+          )}
           <PBtn onClick={() => nav('/learn/notes/new')}>+ New Note</PBtn>
         </div>
       </div>
