@@ -10,7 +10,8 @@ export default defineConfig({
       strategies:   'injectManifest',
       srcDir:       'src',
       filename:     'sw-custom.js',
-      registerType: 'autoUpdate',        // auto-register + update SW
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
       devOptions:   { enabled: true, type: 'module' },
 
       includeAssets: ['icons/*.png', 'icons/*.svg'],
