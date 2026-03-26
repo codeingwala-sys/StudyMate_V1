@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { requestNotificationPermission, getNotificationPermission, scheduleStreakReminder, cancelStreakReminder } from '../services/notifications.service'
 import { useNavigate } from 'react-router-dom'
+import { signOut } from '../services/supabase'
 import { useAppStore } from '../app/store'
 import Header from '../components/layout/Header'
 
@@ -9,6 +10,29 @@ function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme === 'light' ? 'light' : 'dark')
   localStorage.setItem('studymate_theme', theme)
 }
+
+const Row = ({ label, sub, right, noBorder, T }) => (
+  <div style={{ display:'flex',alignItems:'center',padding:'14px 18px',borderBottom:noBorder?'none':`1px solid ${T.border2}` }}>
+    <div style={{ flex:1 }}>
+      <span style={{ fontSize:14,color:T.text,fontFamily:'Inter,sans-serif',display:'block' }}>{label}</span>
+      {sub && <span style={{ fontSize:11,color:T.muted,fontFamily:'Inter,sans-serif',marginTop:2,display:'block' }}>{sub}</span>}
+    </div>
+    {right}
+  </div>
+)
+
+const Toggle = ({ on, onToggle, color='#3b82f6' }) => (
+  <div onClick={onToggle} style={{ width:44,height:26,borderRadius:13,background:on?color:'rgba(128,128,128,0.25)',cursor:'pointer',position:'relative',transition:'background 0.25s',flexShrink:0 }}>
+    <div style={{ position:'absolute',top:3,left:on?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left 0.25s',boxShadow:'0 1px 6px rgba(0,0,0,0.25)' }} />
+  </div>
+)
+
+const Section = ({ title, children, T, isDark }) => (
+  <div>
+    <p style={{ fontSize:11,color:T.label,fontWeight:600,textTransform:'uppercase',letterSpacing:'1.2px',marginBottom:10,fontFamily:'Inter,sans-serif' }}>{title}</p>
+    <div style={{ background:T.bg2,border:`1px solid ${T.border}`,borderRadius:18,overflow:'hidden',boxShadow:isDark?'none':'0 1px 8px rgba(0,0,0,0.06)' }}>{children}</div>
+  </div>
+)
 
 export default function Settings() {
   const navigate = useNavigate()
@@ -30,7 +54,12 @@ export default function Settings() {
     localStorage.setItem('studymate_user', JSON.stringify({ ...savedUser, name: localName }))
   }
 
-  const handleSignOut = () => { localStorage.removeItem('studymate_user'); navigate('/signin') }
+  const handleSignOut = async () => {
+    await signOut().catch(() => {
+      localStorage.removeItem('studymate_user')
+    })
+    navigate('/signin')
+  }
 
   const handleClearData = () => {
     useAppStore.setState({ timerSessions:[], testResults:[], notes:[], streak:0, todayStudied:0 })
@@ -92,36 +121,13 @@ export default function Settings() {
 
   const inp = { background:T.inputBg, border:`1px solid ${T.inputBrd}`, borderRadius:10, padding:'9px 12px', color:T.text, fontSize:13, fontFamily:'Inter,sans-serif', outline:'none', width:'100%', boxSizing:'border-box' }
 
-  const Row = ({ label, sub, right, noBorder }) => (
-    <div style={{ display:'flex',alignItems:'center',padding:'14px 18px',borderBottom:noBorder?'none':`1px solid ${T.border2}` }}>
-      <div style={{ flex:1 }}>
-        <span style={{ fontSize:14,color:T.text,fontFamily:'Inter,sans-serif',display:'block' }}>{label}</span>
-        {sub && <span style={{ fontSize:11,color:T.muted,fontFamily:'Inter,sans-serif',marginTop:2,display:'block' }}>{sub}</span>}
-      </div>
-      {right}
-    </div>
-  )
-
-  const Toggle = ({ on, onToggle, color='#3b82f6' }) => (
-    <div onClick={onToggle} style={{ width:44,height:26,borderRadius:13,background:on?color:'rgba(128,128,128,0.25)',cursor:'pointer',position:'relative',transition:'background 0.25s',flexShrink:0 }}>
-      <div style={{ position:'absolute',top:3,left:on?21:3,width:20,height:20,borderRadius:'50%',background:'#fff',transition:'left 0.25s',boxShadow:'0 1px 6px rgba(0,0,0,0.25)' }} />
-    </div>
-  )
-
-  const Section = ({ title, children }) => (
-    <div>
-      <p style={{ fontSize:11,color:T.label,fontWeight:600,textTransform:'uppercase',letterSpacing:'1.2px',marginBottom:10,fontFamily:'Inter,sans-serif' }}>{title}</p>
-      <div style={{ background:T.bg2,border:`1px solid ${T.border}`,borderRadius:18,overflow:'hidden',boxShadow:isDark?'none':'0 1px 8px rgba(0,0,0,0.06)' }}>{children}</div>
-    </div>
-  )
-
   return (
     <div style={{ minHeight:'100vh', background:isDark?'#000':'#f0f0f0', transition:'background 0.3s' }}>
       <Header title="Settings" back />
       <div style={{ padding:'8px 16px 60px', display:'flex', flexDirection:'column', gap:22 }}>
 
         {/* ── PROFILE ── */}
-        <Section title="Profile">
+        <Section T={T} isDark={isDark} title="Profile">
           <div style={{ padding:18 }}>
             <div style={{ display:'flex',alignItems:'center',gap:14,marginBottom:16 }}>
               <div style={{ width:54,height:54,borderRadius:17,background:isDark?'rgba(96,165,250,0.12)':'rgba(37,99,235,0.1)',border:`1px solid ${isDark?'rgba(96,165,250,0.2)':'rgba(37,99,235,0.18)'}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,fontWeight:800,color:isDark?'#60a5fa':'#2563eb',fontFamily:'Inter,sans-serif' }}>
@@ -145,7 +151,7 @@ export default function Settings() {
         </Section>
 
         {/* ── APPEARANCE ── */}
-        <Section title="Appearance">
+        <Section T={T} isDark={isDark} title="Appearance">
           <div style={{ padding:'16px 18px' }}>
             <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16 }}>
               <span style={{ fontSize:14,color:T.text,fontFamily:'Inter,sans-serif' }}>Theme</span>
@@ -177,8 +183,8 @@ export default function Settings() {
         </Section>
 
         {/* ── NOTIFICATIONS ── */}
-        <Section title="Notifications">
-          <Row label="Study Reminders" sub="Daily 8pm streak reminder"
+        <Section T={T} isDark={isDark} title="Notifications">
+          <Row T={T} label="Study Reminders" sub="Daily 8pm streak reminder"
             noBorder
             right={
               <div style={{ display:'flex',alignItems:'center',gap:8 }}>
@@ -198,7 +204,7 @@ export default function Settings() {
         </Section>
 
         {/* ── DATA & BACKUP ── */}
-        <Section title="Data & Backup">
+        <Section T={T} isDark={isDark} title="Data & Backup">
           {/* Updates info */}
           <div style={{ padding:'14px 18px', borderBottom:`1px solid ${T.border2}` }}>
             <div style={{ display:'flex',alignItems:'flex-start',gap:12 }}>
@@ -263,7 +269,7 @@ export default function Settings() {
         </Section>
 
         {/* ── ABOUT ── */}
-        <Section title="About">
+        <Section T={T} isDark={isDark} title="About">
           <div style={{ padding:'16px 18px' }}>
             <div style={{ display:'flex',alignItems:'center',gap:14,marginBottom:14,paddingBottom:14,borderBottom:`1px solid ${T.border2}` }}>
               <div style={{ width:46,height:46,borderRadius:14,background:isDark?'rgba(96,165,250,0.1)':'rgba(37,99,235,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:isDark?'#60a5fa':'#2563eb' }}>✦</div>
@@ -279,9 +285,9 @@ export default function Settings() {
         </Section>
 
         {/* ── DANGER ZONE ── */}
-        <Section title="Danger Zone">
+        <Section T={T} isDark={isDark} title="Danger Zone">
           {!showClear ? (
-            <Row noBorder label="Clear All Study Data" sub="Resets sessions, tests and streak"
+            <Row T={T} noBorder label="Clear All Study Data" sub="Resets sessions, tests and streak"
               right={
                 <button onClick={()=>setShowClear(true)} style={{ padding:'7px 14px',borderRadius:10,background:T.danger,border:`1px solid ${T.dangerBrd}`,color:T.dangerTxt,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif' }}>Clear</button>
               }
