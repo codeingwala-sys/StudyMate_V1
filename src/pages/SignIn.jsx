@@ -48,7 +48,16 @@ export default function SignIn() {
     try {
       if (mode === 'signup') {
         const { user, error: err, needsConfirmation } = await signUp(email.trim(), pass, name.trim(), { goal: goal.trim() })
-        if (err) { setError(err); return }
+        if (err) { 
+          if (err.includes('rate limit')) {
+            setError('Too many attempts. Please disable "Confirm Email" in Supabase Dashboard or try again in an hour.')
+          } else if (err.toLowerCase().includes('already registered') || err.toLowerCase().includes('exists')) {
+            setError('This email is already registered. Please Sign In.')
+          } else {
+            setError(err)
+          }
+          return 
+        }
         if (needsConfirmation) {
           setMsg('Check your email for a confirmation link, then sign in.')
           setMode('signin')
@@ -57,7 +66,14 @@ export default function SignIn() {
         if (user) await afterLogin(user)
       } else {
         const { user, error: err } = await signIn(email.trim(), pass)
-        if (err) { setError(err === 'Invalid login credentials' ? 'Wrong email or password' : err); return }
+        if (err) { 
+          if (err.includes('rate limit')) {
+            setError('Rate limit exceeded. Please try again later.')
+          } else {
+            setError(err === 'Invalid login credentials' ? 'Wrong email or password' : err)
+          }
+          return 
+        }
         if (user) await afterLogin(user)
       }
     } catch (e) {
