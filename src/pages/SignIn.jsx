@@ -11,6 +11,7 @@ export default function SignIn() {
   const [email,   setEmail]  = useState('')
   const [pass,    setPass]   = useState('')
   const [confirm, setConfirm]= useState('')
+  const [goal,    setGoal]   = useState('')
   const [error,   setError]  = useState('')
   const [loading, setLoading]= useState(false)
   const [msg,     setMsg]    = useState('')
@@ -46,7 +47,7 @@ export default function SignIn() {
     setLoading(true)
     try {
       if (mode === 'signup') {
-        const { user, error: err, needsConfirmation } = await signUp(email.trim(), pass, name.trim())
+        const { user, error: err, needsConfirmation } = await signUp(email.trim(), pass, name.trim(), { goal: goal.trim() })
         if (err) { setError(err); return }
         if (needsConfirmation) {
           setMsg('Check your email for a confirmation link, then sign in.')
@@ -132,9 +133,14 @@ export default function SignIn() {
             onChange={e=>setPass(e.target.value)} style={inp}
             onKeyDown={e=>e.key==='Enter'&&(mode==='signin'?handle():null)} autoComplete={mode==='signup'?'new-password':'current-password'} />
           {mode === 'signup' && (
-            <input type="password" placeholder="Confirm password" value={confirm}
-              onChange={e=>setConfirm(e.target.value)} style={inp}
-              onKeyDown={e=>e.key==='Enter'&&handle()} autoComplete="new-password" />
+            <>
+              <input type="password" placeholder="Confirm password" value={confirm}
+                onChange={e=>setConfirm(e.target.value)} style={inp}
+                onKeyDown={e=>e.key==='Enter'&&handle()} autoComplete="new-password" />
+              <input placeholder="Primary study goal (e.g. UPSC, Finals)" value={goal}
+                onChange={e=>setGoal(e.target.value)} style={inp}
+                onKeyDown={e=>e.key==='Enter'&&handle()} />
+            </>
           )}
 
           {error && (
