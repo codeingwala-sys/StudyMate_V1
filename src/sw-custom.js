@@ -6,8 +6,12 @@ import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { clientsClaim } from 'workbox-core'
 
 // Claim clients immediately on activation
-self.skipWaiting()
 clientsClaim()
+
+// Automatically skip waiting when a new SW is installed
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
 
 // Precache all app assets
 precacheAndRoute(self.__WB_MANIFEST || [])
