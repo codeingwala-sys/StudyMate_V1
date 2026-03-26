@@ -55,6 +55,17 @@ export default function Settings() {
   }
 
   const handleSignOut = async () => {
+    // Clear dynamic study data to prevent account overlapping
+    useAppStore.setState({ 
+      timerSessions: [], 
+      testResults: [], 
+      notes: [], 
+      tasks: [], 
+      streak: 0, 
+      todayStudied: 0,
+      lastSyncedAt: null 
+    })
+    
     await signOut().catch(() => {
       localStorage.removeItem('studymate_user')
     })
@@ -73,7 +84,7 @@ export default function Settings() {
     try {
       const allData = {
         exportedAt: new Date().toISOString(),
-        version:    '1.0.0',
+        version:    '1.1.0',
         user:       savedUser,
         notes,
         tasks,
@@ -124,7 +135,7 @@ export default function Settings() {
   return (
     <div style={{ minHeight:'100vh', background:isDark?'#000':'#f0f0f0', transition:'background 0.3s' }}>
       <Header title="Settings" back />
-      <div style={{ padding:'8px 16px 60px', display:'flex', flexDirection:'column', gap:22 }}>
+      <div style={{ padding:'8px 16px 120px', display:'flex', flexDirection:'column', gap:22 }}>
 
         {/* ── PROFILE ── */}
         <Section T={T} isDark={isDark} title="Profile">
@@ -275,7 +286,7 @@ export default function Settings() {
               <div style={{ width:46,height:46,borderRadius:14,background:isDark?'rgba(96,165,250,0.1)':'rgba(37,99,235,0.08)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:22,color:isDark?'#60a5fa':'#2563eb' }}>✦</div>
               <div>
                 <p style={{ fontSize:16,fontWeight:700,color:T.text,fontFamily:'Inter,sans-serif' }}>StudyMate</p>
-                <p style={{ fontSize:12,color:T.muted,fontFamily:'Inter,sans-serif',marginTop:2 }}>Version 1.0.0 · AI-powered</p>
+                <p style={{ fontSize:12,color:T.muted,fontFamily:'Inter,sans-serif',marginTop:2 }}>Version 1.1.0 · AI-powered</p>
               </div>
             </div>
             <p style={{ fontSize:13,color:T.muted,fontFamily:'Inter,sans-serif',lineHeight:1.6 }}>
