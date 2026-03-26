@@ -1,12 +1,12 @@
 // FREE API — No credit card. Get key at: console.groq.com → API Keys
 // Set your Groq API key here (free at console.groq.com)
-export const API_KEY = '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'
+export const API_KEY = (import.meta.env.VITE_GROQ_API_KEY || '').trim().replace(/^["']|["']$/g, '')
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 async function callGroq(systemPrompt, userMessage, maxTokens = 1024) {
-  if (!API_KEY || API_KEY === 'YOUR_GROQ_API_KEY_HERE') {
-    throw new Error('AI service unavailable. Please try again later.')
+  if (!API_KEY || API_KEY.length < 10) {
+    throw new Error('Groq API Key is missing or too short. Please check your .env file.')
   }
   const response = await fetch(GROQ_URL, {
     method: 'POST',
@@ -25,6 +25,13 @@ async function callGroq(systemPrompt, userMessage, maxTokens = 1024) {
     }),
   })
   if (!response.ok) {
+    console.error(`Groq API Error: ${response.status}`, {
+      keyPrefix: API_KEY ? API_KEY.slice(0, 10) + '...' : 'MISSING',
+      keySuffix: API_KEY ? '...' + API_KEY.slice(-4) : 'MISSING'
+    })
+    if (response.status === 401) {
+      throw new Error(`Invalid Groq API Key. If you just updated .env, please RESTART YOUR DEV SERVER and verify the key at console.groq.com.`)
+    }
     const err = await response.json().catch(() => ({}))
     throw new Error(err.error?.message || `Groq API error ${response.status}`)
   }
