@@ -81,10 +81,10 @@ async function api(path, method = 'GET', body = null, isAuth = false) {
 
 // ── AUTH ──────────────────────────────────────────────────────────────────────
 
-export async function signUp(email, password, name) {
+export async function signUp(email, password, name, metadata = {}) {
   const { data, error } = await api('/signup', 'POST', {
     email, password,
-    data: { name },
+    data: { name, ...metadata },
   }, true)
   if (error) return { user: null, error }
   if (data?.access_token) {
