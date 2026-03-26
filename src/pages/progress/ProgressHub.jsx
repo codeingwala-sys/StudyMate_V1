@@ -80,13 +80,13 @@ function ActivityHeatmap({ timerSessions, notes, t }) {
             </div>
           ))}
         </div>
-        <div style={{ overflowX:'auto', flex:1, position:'relative' }}>
-          <div style={{ position:'relative', height:18, marginBottom:2 }}>
+        <div style={{ overflowX:'auto', flex:1, position:'relative', direction: 'rtl' }}>
+          <div style={{ position:'relative', height:18, marginBottom:2, direction: 'ltr' }}>
             {monthLabels.map(({ wi, label }) => (
               <span key={wi} style={{ position:'absolute', left: wi * COL_W, top:0, fontSize:9, fontWeight:600, color:t.textMuted, fontFamily:'Inter,sans-serif', whiteSpace:'nowrap', lineHeight:'18px', userSelect:'none' }}>{label}</span>
             ))}
           </div>
-          <div style={{ display:'flex', gap:2 }}>
+          <div style={{ display:'flex', gap:2, direction: 'ltr' }}>
             {weeks.map((week, wi) => (
               <div key={wi} style={{ display:'flex', flexDirection:'column', gap:2 }}>
                 {week.map((cell, di) => (
@@ -214,7 +214,7 @@ export default function ProgressHub() {
       )}
 
       {/* ── STATS GRID ── */}
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10, padding:'8px 16px 0' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(140px, 1fr))', gap:10, padding:'8px 16px 0' }}>
         {STATS.map(({ label, val, unit, sub, color, icon }) => (
           <div key={label} style={{ background:t.card, border:`1px solid ${t.border}`, borderRadius:20, padding:'16px', boxShadow:t.shadowSm, position:'relative', overflow:'hidden' }}>
             <div style={{ position:'absolute',top:-20,right:-20,width:80,height:80,background:`radial-gradient(circle,${color}20 0%,transparent 70%)`,borderRadius:'50%',pointerEvents:'none' }} />
@@ -258,7 +258,7 @@ export default function ProgressHub() {
 
       {/* ── PERSONAL BESTS ── */}
       {(personalBests.bestDayMins > 0 || personalBests.bestScore > 0) && (
-        <div style={{ margin:'12px 16px 0', display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+        <div style={{ margin:'12px 16px 0', display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10 }}>
           {personalBests.bestDayMins > 0 && (
             <div style={{ background:t.card, border:`1px solid ${t.border}`, borderRadius:16, padding:'14px', boxShadow:t.shadowSm, textAlign:'center' }}>
               <p style={{ fontSize:10,color:t.textMuted,fontFamily:'Inter,sans-serif',textTransform:'uppercase',letterSpacing:'0.8px',marginBottom:6 }}>Best Day</p>

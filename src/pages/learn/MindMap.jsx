@@ -8,9 +8,7 @@ import * as aiService from '../../services/ai.service'
 import Header from '../../components/layout/Header'
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
-const API_KEY_VAL = (() => {
-  try { return (window.__SM_GROQ_KEY__ || localStorage.getItem('studymate_groq_key') || '') } catch { return '' }
-})()
+const API_KEY_VAL = import.meta.env.VITE_GROQ_API_KEY || ''
 
 async function quickExplain(term, topic, noteContent, apiKey) {
   // First: try to find relevant text in the note

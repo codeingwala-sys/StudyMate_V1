@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import PageWrapper from '../components/layout/PageWrapper'
+import DesktopLayout from '../components/layout/DesktopLayout'
 import Home from '../pages/Home'
 import SignIn from '../pages/SignIn'
 import Settings from '../pages/Settings'
@@ -22,29 +23,31 @@ export default function Router() {
   return (
     <Routes>
       <Route path="/signin" element={<SignIn />} />
-      <Route path="/settings" element={<PageWrapper><Settings /></PageWrapper>} />
       <Route path="/*" element={
-        <PageWrapper>
-          <Routes>
-            <Route path="/" element={<Home />} />
-            <Route path="/learn" element={<LearnHub />} />
-            <Route path="/learn/notes" element={<NotesList />} />
-            <Route path="/learn/notes/new" element={<NoteEditor />} />
-            <Route path="/learn/notes/:id" element={<NoteEditor />} />
-            <Route path="/learn/flashcards" element={<Flashcards />} />
-            <Route path="/learn/voice" element={<VoiceOverview />} />
-            <Route path="/learn/mindmap" element={<MindMap />} />
-            <Route path="/practice" element={<PracticeHub />} />
-            <Route path="/practice/mode1" element={<ModeOne />} />
-            <Route path="/practice/mode2" element={<ModeTwo />} />
-            <Route path="/practice/results" element={<Results />} />
-            <Route path="/focus" element={<FocusHub />} />
-            <Route path="/focus/timer" element={<ForestTimer />} />
-            <Route path="/focus/planner" element={<DailyPlanner />} />
-            <Route path="/progress" element={<ProgressHub />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </PageWrapper>
+        <DesktopLayout>
+          <PageWrapper>
+            <Routes>
+              <Route path="/settings"         element={<Settings />} />
+              <Route path="/"                 element={<Home />} />
+              <Route path="/learn"            element={<LearnHub />} />
+              <Route path="/learn/notes"      element={<NotesList />} />
+              <Route path="/learn/notes/new"  element={<NoteEditor />} />
+              <Route path="/learn/notes/:id"  element={<NoteEditor />} />
+              <Route path="/learn/flashcards" element={<Flashcards />} />
+              <Route path="/learn/voice"      element={<VoiceOverview />} />
+              <Route path="/learn/mindmap"    element={<MindMap />} />
+              <Route path="/practice"         element={<PracticeHub />} />
+              <Route path="/practice/mode1"   element={<ModeOne />} />
+              <Route path="/practice/mode2"   element={<ModeTwo />} />
+              <Route path="/practice/results" element={<Results />} />
+              <Route path="/focus"            element={<FocusHub />} />
+              <Route path="/focus/timer"      element={<ForestTimer />} />
+              <Route path="/focus/planner"    element={<DailyPlanner />} />
+              <Route path="/progress"         element={<ProgressHub />} />
+              <Route path="*"                 element={<Navigate to="/" replace />} />
+            </Routes>
+          </PageWrapper>
+        </DesktopLayout>
       } />
     </Routes>
   )

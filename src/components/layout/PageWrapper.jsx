@@ -13,9 +13,9 @@ export default function PageWrapper({ children }) {
     || /^\/learn\/notes\/\d+$/.test(pathname)
 
   return (
-    <div className="app-bg" style={{
+    <div className="page-wrapper" style={{
       position:'relative', display:'flex', flexDirection:'column',
-      height:'100dvh', width:'100%', maxWidth:430, margin:'0 auto', overflow:'hidden',
+      height:'100dvh', margin:'0 auto', overflow:'hidden',
     }}>
       {/* page-scroll must have transparent bg so the ::before glow shows through */}
       <div className="page-scroll" style={{ paddingBottom: hideNav ? 0 : 80, background:'transparent' }}>

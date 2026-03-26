@@ -109,8 +109,8 @@ export default function ModeOne() {
   const correct    = answers.filter(a => a.selected === a.correct).length
   const finalScore = Math.round((correct / (questions.length || 1)) * 100)
 
-  const pill = (active, label, onClick) => (
-    <button onClick={onClick} style={{ flex:1, padding:'10px', borderRadius:12, fontFamily:'Inter,sans-serif', background:active?t.text:'transparent', border:`1px solid ${active?t.borderStrong:t.border}`, color:active?t.bg:t.textMuted, fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>{label}</button>
+  const pill = (key, active, label, onClick) => (
+    <button key={key} onClick={onClick} style={{ flex:1, padding:'10px', borderRadius:12, fontFamily:'Inter,sans-serif', background:active?t.text:'transparent', border:`1px solid ${active?t.borderStrong:t.border}`, color:active?t.bg:t.textMuted, fontSize:12, fontWeight:600, cursor:'pointer', transition:'all 0.15s' }}>{label}</button>
   )
 
   // ── DONE ──
@@ -286,12 +286,12 @@ export default function ModeOne() {
         {/* ── OPTIONS ── */}
         <div>
           <p style={{ fontSize:11,color:t.textMuted,fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',marginBottom:10,fontFamily:'Inter,sans-serif' }}>Difficulty</p>
-          <div style={{ display:'flex',gap:8 }}>{DIFFICULTY.map(d=>pill(difficulty===d,d,()=>setDifficulty(d)))}</div>
+          <div style={{ display:'flex',gap:8 }}>{DIFFICULTY.map(d=>pill(d, difficulty===d, d, ()=>setDifficulty(d)))}</div>
         </div>
 
         <div>
           <p style={{ fontSize:11,color:t.textMuted,fontWeight:700,textTransform:'uppercase',letterSpacing:'1.2px',marginBottom:10,fontFamily:'Inter,sans-serif' }}>Questions</p>
-          <div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>{COUNTS.map(n=>pill(count===n,`${n} Qs`,()=>setCount(n)))}</div>
+          <div style={{ display:'flex',gap:6,flexWrap:'wrap' }}>{COUNTS.map(n=>pill(n, count===n, `${n} Qs`, ()=>setCount(n)))}</div>
         </div>
 
         <div style={{ display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px',background:t.card,border:`1px solid ${t.border}`,borderRadius:14,boxShadow:t.shadowSm }}>
