@@ -5,6 +5,9 @@
 import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
 import { clientsClaim } from 'workbox-core'
 
+const VERSION = '1.1.1' // Increment this to force SW update if needed
+console.log(`[StudyMate SW] Version ${VERSION} initializing...`)
+
 // Claim clients immediately on activation
 clientsClaim()
 
