@@ -49,6 +49,8 @@ export default function App() {
   // ── SERVICE WORKER AUTO-UPDATE ──────────────────────────────────────────
   // Listen for the new service worker taking control and reload the page
   // automatically. This ensures the user always has the latest version.
+  const [updateAvailable, setUpdateAvailable] = useState(false)
+
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return
 
@@ -59,12 +61,19 @@ export default function App() {
 
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange)
 
-    // Periodically check for updates
-    const interval = setInterval(() => {
+    // Check for updates periodically
+    const checkUpdate = () => {
       navigator.serviceWorker.ready
-        .then(reg => reg.update())
+        .then(reg => {
+          reg.update().then(() => {
+            if (reg.waiting) setUpdateAvailable(true)
+          })
+        })
         .catch(() => {})
-    }, 60 * 60 * 1000) // Check every hour instead of every minute for auto-updates
+    }
+
+    const interval = setInterval(checkUpdate, 30 * 60 * 1000) // Check every 30 mins
+    checkUpdate() // Also check on mount
 
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange)
@@ -79,6 +88,32 @@ export default function App() {
       <BrowserRouter>
         <Router />
       </BrowserRouter>
+
+      {/* Update Available Banner — sticky bottom */}
+      {updateAvailable && (
+        <div style={{
+          position:'fixed', bottom:64, left:'50%', transform:'translateX(-50%)',
+          width:'90%', maxWidth:400, zIndex:9999,
+          background:'#3b82f6', color:'#fff', padding:'12px 16px', borderRadius:16,
+          boxShadow:'0 4px 20px rgba(0,0,0,0.3)', display:'flex', alignItems:'center', gap:10,
+          animation:'slideUpBanner 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+        }}>
+          <div style={{ flex:1 }}>
+            <p style={{ fontSize:14, fontWeight:700, margin:0 }}>New version available!</p>
+            <p style={{ fontSize:12, opacity:0.9, margin:0 }}>Tap to update and refresh.</p>
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{
+              background:'#fff', border:'none', color:'#3b82f6',
+              padding:'8px 16px', borderRadius:10, fontSize:13, fontWeight:800,
+              cursor:'pointer'
+            }}
+          >
+            Update
+          </button>
+        </div>
+      )}
 
 
       {/* Sync indicator — subtle, bottom right */}
